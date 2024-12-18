@@ -99,3 +99,15 @@ def test_delete_reaction(test_client):
     response.raise_for_status()
     dataset = Dataset.FromString(b64decode(response.json()))
     assert len(dataset.reactions) == 79
+
+
+def test_summarize_reaction(test_client):
+    response = test_client.get(
+        "/api/editor/fetch_reaction",
+        params={"user_id": TEST_USER_ID, "dataset_name": "Deoxyfluorination screen", "index": 0},
+    )
+    response.raise_for_status()
+    reaction = Reaction.FromString(b64decode(response.json()))
+    summary = test_client.post("/api/editor/summarize_reaction", data=reaction.SerializeToString()).json()
+    assert "provenance" in summary
+    assert "summary" in summary

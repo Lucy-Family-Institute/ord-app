@@ -16,7 +16,8 @@
 import gzip
 from uuid import uuid4
 
-from fastapi import APIRouter, Response
+from fastapi import APIRouter, Request, Response
+from ord_schema.proto.reaction_pb2 import Reaction
 
 from ord_app.api import send_message, write_message
 from ord_app.api.database import add_dataset, get_cursor, get_dataset
@@ -94,3 +95,12 @@ def delete_reaction(user_id: str, dataset_name: str, index: int):
         del dataset.reactions[index]
         add_dataset(user_id, dataset, cursor)
     return Response(status_code=200)
+
+
+@router.post("/summarize_reaction")
+async def summarize_reaction(request: Request):
+    """Returns summary information for the reaction card view."""
+    # TODO(skearnes): Implement something useful here.
+    reaction = Reaction.FromString(await request.body())
+    del reaction  # Unused.
+    return {"provenance": {"doi": "foo"}, "summary": {"yield": 25.5}}
