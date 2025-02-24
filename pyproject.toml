@@ -1,43 +1,41 @@
-[build-system]
-requires = ["setuptools", "setuptools-scm"]
-build-backend = "setuptools.build_meta"
-
-[project]
+[tool.poetry]
 name = "ord-app"
+version = "0.1.0"
 description = "App for the Open Reaction Database"
-classifiers = [
-    "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: Apache Software License",
-    "Operating System :: OS Independent",
-]
-requires-python = ">=3.10"
-dependencies = [
-    "fastapi[standard]",
-    "gunicorn",
-    "jinja2",
-    "numpy",
-    "ord-schema==0.3.91",
-    "pandas",
-    "protobuf==4.22.3",
-    "psycopg[binary,pool]>=3",
-    "rdkit",
-    "setuptools",  # TODO(skearnes): Move to ord-schema.
-    "uvicorn[standard]",
-]
-dynamic = ["version"]
+authors = ["Your Name <your.email@example.com>"]
+readme = "README.md"
 
-[project.optional-dependencies]
-"tests" = [
-    "black",
-    "coverage",
-    "httpx",
-    "pylint",
-    "pytest",
-    "pytest-cov",
-    "pytype",
-    "tenacity",
-    "testing-postgresql",
-]
+[tool.poetry.dependencies]
+python = "~3.12"
+orjson = "^3.10.12"
+loguru = "^0.7.3"
+ruff = "^0.9.1"
+freezegun = "^1.5.1"
+asyncpg = "^0.30.0"
+fastapi = "^0.115.8"
+gunicorn = "^23.0.0"
+psycopg = "^3.2.4"
+ord-schema = "^0.3.96"
+protobuf = "^4.22"
+rdkit = "^2024.9.5"
+uvicorn = "^0.34.0"
+python-multipart = "^0.0.20"
+alembic = "^1.14.1"
+sqlalchemy = "^2.0.38"
+pydantic-settings = "^2.7.1"
+fastapi-pagination = "^0.12.34"
+pydantic = {extras = ["email"], version = "^2.10.6"}
+greenlet = "^3.1.1"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.3.4"
+faker = "^36.1.1"
+sqlalchemy-utils = "^0.41.2"
+coverage = "^7.6.12"
+httpx = "^0.28.1"
+pytest-cov = "^6.0.0"
+pytype = "^2024.10.11"
+pytest-asyncio = "^0.25.3"
 
 [tool.black]
 line-length = 120
@@ -54,3 +52,7 @@ exclude = ["**/*_test.py", "**/test_*.py", "build/", "dist/"]
 keep_going = true
 disable = ["module-attr", "pyi-error"]
 jobs = 0
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
