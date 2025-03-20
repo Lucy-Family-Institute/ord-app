@@ -13,16 +13,14 @@
 # limitations under the License.
 from typing import Annotated
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Response, UploadFile, status
+from fastapi import APIRouter, Depends, Response, UploadFile, status
 from fastapi_pagination import Page
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from ord_app.service_api.domain.auth import dataset_authorization
-from ord_app.service_api.domain.reactions import ReactionsUseCase, get_reaction_use_case, validate_reactions_task
+from ord_app.service_api.domain.reactions import ReactionsUseCase, get_reaction_use_case
 from ord_app.service_api.schemas.datasets import DownloadFileFormats
-from ord_app.service_api.schemas.reactions import ReactionCreateSchema, ReactionSchema, ReactionUpdateSchema
+from ord_app.service_api.schemas.reactions import ReactionCreateSchema, ReactionResponseSchema, ReactionUpdateSchema
 from ord_app.service_api.services.pb_utils import validate_uploaded_pb_file
-from ord_app.service_api.services.postgresql import get_db_session
 
 router = APIRouter(tags=["reactions"], prefix="/datasets/{dataset_id}/reactions")
 
@@ -30,7 +28,7 @@ router = APIRouter(tags=["reactions"], prefix="/datasets/{dataset_id}/reactions"
 @router.post(
     "",
     dependencies=[Depends(dataset_authorization(("admin", "editor")))],
-    response_model=ReactionSchema,
+    response_model=ReactionResponseSchema,
 )
 async def create_reaction(
     dataset_id: int,
@@ -42,7 +40,7 @@ async def create_reaction(
 @router.post(
     "/from-scratch",
     dependencies=[Depends(dataset_authorization(("admin", "editor")))],
-    response_model=ReactionSchema
+    response_model=ReactionResponseSchema
 )
 async def create_reaction_from_scratch(
     dataset_id: int,
@@ -53,25 +51,22 @@ async def create_reaction_from_scratch(
 @router.post(
     "/upload",
     dependencies=[Depends(dataset_authorization(("admin", "editor")))],
-    response_model=ReactionSchema,
+    response_model=ReactionResponseSchema,
 )
 async def upload_reaction(
     dataset_id: int,
     file: UploadFile,
     use_case: Annotated[ReactionsUseCase, Depends(get_reaction_use_case)],
-    db: Annotated[AsyncSession, Depends(get_db_session)],
-    background_tasks: BackgroundTasks
 ):
     file_data, kind = await validate_uploaded_pb_file(file)
     response =  await use_case.upload(dataset_id, file_data, kind)
-    background_tasks.add_task(validate_reactions_task, db)
     return response
 
 
 @router.get(
     "",
     dependencies=[Depends(dataset_authorization(("admin", "editor", "viewer")))],
-    response_model=Page[ReactionSchema],
+    response_model=Page[ReactionResponseSchema],
 )
 async def reactions(
     dataset_id: int,
@@ -81,23 +76,37 @@ async def reactions(
 
 
 @router.get(
+    "/search",
+    dependencies=[Depends(dataset_authorization(("admin", "editor", "viewer")))],
+    response_model=ReactionResponseSchema,
+)
+async def search_reaction(
+    dataset_id: int,
+    pb_reaction_id: str,
+    use_case: Annotated[ReactionsUseCase, Depends(get_reaction_use_case)],
+):
+    return await use_case.search(dataset_id=dataset_id, pb_reaction_id=pb_reaction_id)
+
+
+@router.get(
     "/{reaction_id}",
     dependencies=[Depends(dataset_authorization(("admin", "editor", "viewer")))],
-    response_model=ReactionSchema,
+    response_model=ReactionResponseSchema,
 )
 async def reaction(
+    dataset_id: int,
     reaction_id: int,
     use_case: Annotated[ReactionsUseCase, Depends(get_reaction_use_case)],
 ):
-    return await use_case.get(reaction_id)
+    return await use_case.get(dataset_id, reaction_id)
 
 
 @router.patch(
     "/{reaction_id}",
     dependencies=[Depends(dataset_authorization(("admin", "editor")))],
-    response_model=ReactionSchema,
+    response_model=ReactionResponseSchema,
 )
-async def _update_reaction(
+async def update_reaction(
     dataset_id: int,
     reaction_id: int,
     payload: ReactionUpdateSchema,
@@ -111,7 +120,7 @@ async def _update_reaction(
     dependencies=[Depends(dataset_authorization(("admin", "editor")))],
     status_code=status.HTTP_204_NO_CONTENT,
 )
-async def _update_reaction(
+async def delete_reaction(
     dataset_id: int,
     reaction_id: int,
     use_case: Annotated[ReactionsUseCase, Depends(get_reaction_use_case)],
@@ -123,13 +132,14 @@ async def _update_reaction(
     "/{reaction_id}/download",
     dependencies=[Depends(dataset_authorization(("admin", "editor", "viewer")))],
 )
-async def _download_reaction(
+async def download_reaction(
+    dataset_id: int,
     reaction_id: int,
     file_format: DownloadFileFormats,
     use_case: Annotated[ReactionsUseCase, Depends(get_reaction_use_case)],
 ):
-    reaction, data = await use_case.download(reaction_id, file_format)
-    filename = f"{reaction.pb_reaction_id}-{reaction.id}.{file_format}"
+    reaction, data = await use_case.download(dataset_id, reaction_id, file_format)
+    filename = f"{reaction.pb_reaction_id}.{file_format}"
     return Response(
         data,
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},

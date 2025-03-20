@@ -21,20 +21,21 @@ import { addReactionPathComponentToList } from 'store/features/reactionForm/reac
 import { EditIcon } from 'common/icons';
 import { ReactionEntityDelete } from 'features/reactions/ReactionEntities/ReactionEntityDelete/ReactionEntityDelete.tsx';
 import type { EntityListItemProps } from './entityListItem.types.ts';
-import { InlineKeyValue } from 'common/components/display/InlineKeyValue/InlineKeyValue.tsx';
+import { KeyValueDisplay } from 'common/components/display/KeyValueDisplay/KeyValueDisplay.tsx';
 
 export function EntityListItem<T>({
   entityKey,
   entity,
-  entityName,
+  entityField,
   title,
   requiredFields,
+  optionalFields,
 }: Readonly<EntityListItemProps<T>>) {
   const dispatch = useAppDispatch();
   const { reactionId, pathComponents } = useContext(reactionEntityContext);
   const itemPathComponents = useMemo(() => {
-    return [...pathComponents, entityName, entityKey];
-  }, [entityName, entityKey, pathComponents]);
+    return [...pathComponents, entityField, entityKey];
+  }, [entityField, entityKey, pathComponents]);
 
   const titleText = useMemo(() => {
     const humanFriendlyKey = typeof entityKey === 'string' ? entityKey : `${entityKey + 1}`;
@@ -56,7 +57,7 @@ export function EntityListItem<T>({
       >
         <Title order={3}>{titleText}</Title>
         <ActionIcon
-          variant="white"
+          variant="transparent"
           color="primary"
           onClick={onEdit}
         >
@@ -64,17 +65,29 @@ export function EntityListItem<T>({
         </ActionIcon>
         <ReactionEntityDelete
           reactionId={reactionId}
-          entityName={entityName}
+          entityName={titleText}
           pathComponents={itemPathComponents}
         />
       </Flex>
       {requiredFields.map(({ label, render }) => (
-        <InlineKeyValue
+        <KeyValueDisplay
           key={label}
           label={label}
           value={render(entity)}
+          multiline
         />
       ))}
+      {optionalFields?.map(({ label, render }) => {
+        const value = render(entity);
+        return value ? (
+          <KeyValueDisplay
+            key={label}
+            label={label}
+            value={render(entity)}
+            multiline
+          />
+        ) : null;
+      })}
     </Flex>
   );
 }

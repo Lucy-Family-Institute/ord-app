@@ -14,42 +14,57 @@
  * limitations under the License.
  */
 import type { ValuePrecisionUnit } from './valuePrecisionUnitControl.types';
-import { Input, NumberInput } from '@mantine/core';
+import { Input } from '@mantine/core';
 import { InputGroup } from '../InputGroup/InputGroup';
-import type { SelectOption } from 'common/types/selectOptions';
+import type { SelectOptions } from 'common/types/selectOptions';
 import { AppSegmentedControl } from '../AppSegmentedControl/AppSegmentedControl';
 import classes from './valuePrecisionUnitControl.module.scss';
 import { useUncontrolled } from '@mantine/hooks';
 import { AppNativeSelect } from '../AppNativeSelect/AppNativeSelect';
 import type { ReactNode } from 'react';
 import clsx from 'clsx';
+import { AppNumberInput } from 'common/components/inputs/AppNumberInput/AppNumberInput.tsx';
+import type { Optional } from 'store/entities/reactions/reactionEntity/reactionEntity.types.ts';
 
 interface ValuePrecisionUnitControlProps {
   value?: ValuePrecisionUnit;
   defaultValue?: ValuePrecisionUnit;
   label?: ReactNode;
   onChange: (value: ValuePrecisionUnit) => void;
-  options: Array<SelectOption<number | string>>;
+  options: SelectOptions;
   select?: 'native' | 'native-inline' | 'segmented';
 }
 
+const useValuePrecisionUnitsUncontrolledValues = ({
+  options,
+  ...props
+}: Pick<ValuePrecisionUnitControlProps, 'value' | 'defaultValue' | 'onChange' | 'options'>): [
+  ValuePrecisionUnit,
+  (value: ValuePrecisionUnit) => void,
+] => {
+  const [uncontrolledValue, uncontrolledOnChange] = useUncontrolled(props);
+
+  return [
+    {
+      value: uncontrolledValue?.value ?? null,
+      precision: uncontrolledValue?.precision ?? null,
+      units: uncontrolledValue?.units ?? options[0],
+    },
+    uncontrolledOnChange,
+  ];
+};
+
 export function ValuePrecisionUnitControl({
-  value,
-  defaultValue,
   options,
   label,
-  onChange,
   select = 'segmented',
+  ...rest
 }: Readonly<ValuePrecisionUnitControlProps>) {
-  const [uncontrolledValue, uncontrolledOnChange] = useUncontrolled({
-    value,
-    defaultValue,
-    onChange,
-  });
+  const [uncontrolledValue, uncontrolledOnChange] = useValuePrecisionUnitsUncontrolledValues({ options, ...rest });
 
-  const handleChange = (name: keyof ValuePrecisionUnit, newValue: string | number) => {
+  const handleChange = (name: keyof ValuePrecisionUnit, newValue: string | number | null) => {
     const previousValue = uncontrolledValue ?? {};
-    uncontrolledOnChange({ ...previousValue, [name]: newValue });
+    uncontrolledOnChange({ ...previousValue, [name]: newValue } as ValuePrecisionUnit);
   };
 
   const unitOnChange = handleChange.bind(null, 'units');
@@ -58,20 +73,20 @@ export function ValuePrecisionUnitControl({
     <Input.Wrapper label={label}>
       <div className={clsx(classes.wrapper, { [classes.inline]: select === 'native-inline' })}>
         <InputGroup>
-          <NumberInput
-            value={uncontrolledValue?.value}
-            onChange={(value: string | number) => handleChange('value', value)}
+          <AppNumberInput
+            value={uncontrolledValue.value}
+            onChange={(value: Optional<number>) => handleChange('value', value)}
             placeholder="Value"
           />
-          <NumberInput
-            value={uncontrolledValue?.precision}
-            onChange={(value: string | number) => handleChange('precision', value)}
+          <AppNumberInput
+            value={uncontrolledValue.precision}
+            onChange={(value: Optional<number>) => handleChange('precision', value)}
             leftSection="±"
             placeholder="Precision"
           />
           {select === 'native-inline' && (
             <AppNativeSelect
-              value={uncontrolledValue?.units}
+              value={uncontrolledValue.units}
               options={options}
               onChange={unitOnChange}
             />
@@ -79,14 +94,14 @@ export function ValuePrecisionUnitControl({
         </InputGroup>
         {select === 'native' && (
           <AppNativeSelect
-            value={uncontrolledValue?.units}
+            value={uncontrolledValue.units}
             options={options}
             onChange={unitOnChange}
           />
         )}
         {select === 'segmented' && (
           <AppSegmentedControl
-            value={uncontrolledValue?.units}
+            value={uncontrolledValue.units}
             options={options}
             onChange={unitOnChange}
             fullWidth

@@ -13,19 +13,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { format } from 'date-fns';
-import { toZonedTime, fromZonedTime } from 'date-fns-tz';
+import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
+import timezone from 'dayjs/plugin/timezone';
 
-/**
- * Formats a string in ISO format into a human-readable date string using date-fns library
- *
- * @param inputDate - String in ISO format
- * @returns
- */
+dayjs.extend(utc);
+dayjs.extend(timezone);
+
+const TZ_FORMAT = 'DD.MM.YYYY hh:mm a';
+
 export function formatDate(inputDate: string) {
-  const userTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  const utcDate = fromZonedTime(inputDate, 'UTC');
-  const localDate = toZonedTime(utcDate, userTimeZone);
-
-  return format(localDate, 'dd.MM.yyyy hh:mm a');
+  const timezone = dayjs.tz.guess();
+  return dayjs.utc(inputDate).tz(timezone).format(TZ_FORMAT);
 }

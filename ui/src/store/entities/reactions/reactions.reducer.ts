@@ -20,12 +20,18 @@ import {
   getReactionPageActions,
   getReactionsListActions,
   importReactionFromFileActions,
-  renameReactionActions,
   addUpdateReactionFieldActions,
   deleteReactionFieldActions,
+  removeReactionActions,
 } from './reactions.actions.ts';
+import {
+  getTemplateActions,
+  getAllTemplatesActions,
+  removeTemplateActions,
+  renameTemplateActions,
+} from 'store/entities/templates/templates.actions.ts';
 import { itemsById } from 'common/utils';
-import type { AppReaction, ReactionWrapper } from './reactions.types.ts';
+import type { ReactionOrTemplate, AppReaction, DatasetReaction, ReactionTemplate } from './reactions.types.ts';
 import type { ItemsById, Pagination } from 'common/types';
 import { emptyPagination } from 'common/constants.ts';
 import {
@@ -33,22 +39,28 @@ import {
   generateDeepPartialReactionByPath,
   removeDeepReactionPart,
 } from './reactions.utils.ts';
+import { reactionsPreviewsReducer } from 'store/entities/reactions/reactionsPreviews/reactionsPreviews.reducer.ts';
+import { linkReactionEntities } from 'store/entities/reactions/reactions.converters.ts';
 
-const getReactionId = (reaction: ReactionWrapper) => reaction.id;
+const getReactionId = (reaction: DatasetReaction) => reaction.id;
+
+const getTemplateId = (template: ReactionTemplate) => template.id;
 
 const activeDatasetId = createReducer<number>(0, builder => {
   builder.addCase(getReactionActions.request, (_, action) => action.payload.datasetId);
   builder.addCase(getReactionsListActions.request, (_, action) => action.payload);
 });
 
-const reactionsById = createReducer<ItemsById<ReactionWrapper>>({}, builder => {
+const reactionsById = createReducer<ItemsById<ReactionOrTemplate>>({}, builder => {
   builder.addCase(
     addUpdateReactionFieldActions.request,
     (state, { payload: { reactionId, pathComponents, newValue } }) => {
       const reaction = state[reactionId];
-      const updatedReaction: AppReaction = deepMergeWithArrayMerge(
-        reaction.data,
-        generateDeepPartialReactionByPath(pathComponents, newValue) as unknown as AppReaction,
+      const updatedReaction: AppReaction = linkReactionEntities(
+        deepMergeWithArrayMerge(
+          reaction.data,
+          generateDeepPartialReactionByPath(pathComponents, newValue) as unknown as AppReaction,
+        ),
       );
       return {
         ...state,
@@ -59,20 +71,9 @@ const reactionsById = createReducer<ItemsById<ReactionWrapper>>({}, builder => {
       };
     },
   );
-  builder.addCase(addUpdateReactionFieldActions.success, (state, { payload }) => {
-    const { id } = payload;
-    const { data } = state[id];
-    return {
-      ...state,
-      [id]: {
-        ...payload,
-        data,
-      },
-    };
-  });
   builder.addCase(deleteReactionFieldActions.request, (state, { payload: { reactionId, pathComponents } }) => {
     const reaction = state[reactionId];
-    const updatedReaction: AppReaction = removeDeepReactionPart(reaction.data, pathComponents);
+    const updatedReaction: AppReaction = linkReactionEntities(removeDeepReactionPart(reaction.data, pathComponents));
     return {
       ...state,
       [reactionId]: {
@@ -81,26 +82,72 @@ const reactionsById = createReducer<ItemsById<ReactionWrapper>>({}, builder => {
       },
     };
   });
-  builder.addMatcher(
-    isAnyOf(
-      getReactionActions.success,
-      renameReactionActions.success,
-      createEmptyReactionActions.success,
-      importReactionFromFileActions.success,
+  builder.addCase(removeReactionActions.success, (state, { payload: reactionId }) => {
+    const { [reactionId]: _, ...rest } = state;
+    return rest;
+  });
+  builder.addCase(removeTemplateActions.success, (state, { payload: templateId }) => {
+    const { [`template_${templateId}`]: _, ...rest } = state;
+    return rest;
+  });
+  builder.addCase(getTemplateActions.success, (state, action) => ({
+    ...state,
+    [getTemplateId(action.payload)]: {
+      ...action.payload,
+      data: linkReactionEntities(action.payload.data),
+    },
+  }));
+  builder.addCase(getAllTemplatesActions.success, (state, action) => ({
+    ...state,
+    ...itemsById(
+      action.payload.map(item => ({ ...item, data: linkReactionEntities(item.data) })),
+      getTemplateId,
     ),
+  }));
+  builder.addCase(renameTemplateActions.success, (state, action) => {
+    return {
+      ...state,
+      [action.payload.id]: action.payload,
+    };
+  });
+  builder.addMatcher(
+    isAnyOf(addUpdateReactionFieldActions.success, deleteReactionFieldActions.success),
+    (state, { payload }) => {
+      const { id } = payload;
+      const { data } = state[id];
+      return {
+        ...state,
+        [id]: {
+          ...payload,
+          data,
+        },
+      };
+    },
+  );
+  builder.addMatcher(
+    isAnyOf(getReactionActions.success, createEmptyReactionActions.success, importReactionFromFileActions.success),
     (state, action) => ({
       ...state,
-      [getReactionId(action.payload)]: action.payload,
+      [getReactionId(action.payload)]: {
+        ...action.payload,
+        data: linkReactionEntities(action.payload.data),
+      },
     }),
   );
   builder.addMatcher(isAnyOf(getReactionsListActions.success, getReactionPageActions.success), (state, action) => ({
     ...state,
-    ...itemsById(action.payload.items, getReactionId),
+    ...itemsById(
+      action.payload.items.map(item => ({ ...item, data: linkReactionEntities(item.data) })),
+      getReactionId,
+    ),
   }));
 });
 
 const reactionsOrder = createReducer<Array<number>>([], builder => {
   builder.addCase(getReactionsListActions.request, () => []);
+  builder.addCase(removeReactionActions.success, (state, { payload: reactionId }) =>
+    state.filter(id => id !== reactionId),
+  );
   builder.addMatcher(isAnyOf(getReactionsListActions.request, getReactionPageActions.request), () => []);
   builder.addMatcher(isAnyOf(getReactionsListActions.success, getReactionPageActions.success), (_, action) =>
     action.payload.items.map(getReactionId),
@@ -119,6 +166,11 @@ const pagination = createReducer<Pagination>(emptyPagination, builder => {
     ...state,
     total: state.total + 1,
     pages: Math.ceil((state.total + 1) / state.size),
+  }));
+  builder.addMatcher(isAnyOf(removeReactionActions.success), state => ({
+    ...state,
+    total: state.total - 1,
+    pages: Math.ceil((state.total - 1) / state.size),
   }));
 });
 
@@ -155,4 +207,5 @@ export const reactionsReducer = combineReducers({
   activeDatasetId,
   isReactionCreating,
   areReactionsLoading,
+  reactionsPreviews: reactionsPreviewsReducer,
 });

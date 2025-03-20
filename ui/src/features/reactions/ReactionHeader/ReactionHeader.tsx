@@ -17,17 +17,21 @@ import { ActionIcon, Button, Flex, Paper, Title } from '@mantine/core';
 import { selectReactionById } from 'store/entities/reactions/reactions.selectors.ts';
 import { useSelector } from 'react-redux';
 import { CopyButton } from 'common/components/interactions/CopyButton/CopyButton.tsx';
-import { CheckListIcon, ChevronDownIcon, DownloadIcon, EditIcon, TrashIcon } from 'common/icons';
-import { useCallback, useMemo } from 'react';
+import { CheckListIcon, ChevronDownIcon, CopyImageIcon, DownloadIcon, EditIcon } from 'common/icons';
+import { useCallback, useMemo, useRef } from 'react';
 import { DownloadMenu } from 'common/components/DownloadMenu/DownloadMenu.tsx';
-import { useLocation } from 'wouter';
+import { useLocation, useRouter } from 'wouter';
 import { domain, fileDownloadOptions } from 'common/constants.ts';
-import classes from 'features/reactions/ReactionHeader/reactionHeader.module.scss';
 import { useDisclosure } from '@mantine/hooks';
 import { useAppDispatch } from 'store/useAppDispatch.ts';
 import { InputModal } from 'common/components/InputModal/InputModal.tsx';
 import { addUpdateReactionField } from 'store/entities/reactions/reactions.thunks.ts';
 import { ReactionPreview } from 'features/reactions/ReactionPreview/ReactionPreview.tsx';
+import { RemoveReaction } from 'features/reactions/RemoveReaction/RemoveReaction.tsx';
+import { SaveAsTemplate } from 'features/templates/SaveAsTemplate/SaveAsTemplate.tsx';
+import { ReactionValidationResult } from 'features/reactions/ReactionHeader/ReactionValidationResult/ReactionValidationResult.tsx';
+import { copyPreviewAsImage } from 'features/reactions/ReactionPreview/reactionPreview.utils.ts';
+import classes from 'features/reactions/ReactionList/ReactionCard/reactionCard.module.scss';
 
 interface ReactionHeaderProps {
   datasetId: number;
@@ -36,11 +40,12 @@ interface ReactionHeaderProps {
 
 export function ReactionHeader({ datasetId, reactionId }: Readonly<ReactionHeaderProps>) {
   const [location] = useLocation();
+  const { base } = useRouter();
   const dispatch = useAppDispatch();
   const reaction = useSelector(selectReactionById(reactionId));
   const [opened, { open, close }] = useDisclosure();
-
-  const hasReactionDefaultId = reaction.pb_reaction_id === reaction.id.toString();
+  const [saveAsTemplateOpened, { open: openSaveAsTemplate, close: closeSaveAsTemplate }] = useDisclosure();
+  const previewRef = useRef<HTMLDivElement | null>(null);
 
   const onReactionNameChange = useCallback(
     async (name: string) => {
@@ -49,86 +54,111 @@ export function ReactionHeader({ datasetId, reactionId }: Readonly<ReactionHeade
     [dispatch, reactionId],
   );
 
+  const onPreviewSave = useCallback(() => {
+    copyPreviewAsImage(previewRef.current);
+  }, [previewRef]);
+
   const copyOptions = useMemo(
     () => [
-      { label: 'Copy Reaction Link', value: `${domain}${location}` },
-      { label: 'Copy Reaction ID', value: reactionId.toString() },
+      { label: 'Copy Reaction Link', value: `${domain}${base}${location}` },
+      { label: 'Copy Reaction ID', value: reaction.pb_reaction_id ?? '' },
     ],
-    [reactionId, location],
+    [base, location, reactionId],
   );
 
   return (
-    <Paper
-      radius="md"
-      p="lg"
-    >
+    <>
       <Flex
-        direction="column"
-        gap="sm"
+        justify="space-between"
+        align="flex-end"
       >
-        <Flex justify="space-between">
-          <Flex
-            align="center"
-            gap="sm"
+        <ReactionValidationResult reactionId={reactionId} />
+        <Flex
+          align="center"
+          gap="sm"
+        >
+          <RemoveReaction reactionId={reactionId} />
+          <Button
+            variant="transparent"
+            leftSection={<CheckListIcon />}
+            onClick={openSaveAsTemplate}
           >
-            {hasReactionDefaultId && (
+            Save as Template
+          </Button>
+          <DownloadMenu
+            options={fileDownloadOptions}
+            url={`/datasets/${datasetId}/reactions/${reactionId}/download`}
+            target={
+              <Button
+                leftSection={<DownloadIcon />}
+                rightSection={<ChevronDownIcon />}
+                variant="transparent"
+              >
+                Download Reaction
+              </Button>
+            }
+          />
+        </Flex>
+      </Flex>
+      <Paper
+        radius="md"
+        p="lg"
+      >
+        {saveAsTemplateOpened && (
+          <SaveAsTemplate
+            reactionId={reactionId}
+            reactionPbId={reaction.pb_reaction_id}
+            onClose={closeSaveAsTemplate}
+          />
+        )}
+        <Flex
+          direction="column"
+          gap="sm"
+        >
+          <Flex
+            justify="space-between"
+            align="center"
+          >
+            <Flex
+              align="center"
+              gap="sm"
+              className={classes.titleWrapper}
+            >
               <Title
                 className={classes.title}
                 order={2}
               >
-                Reaction
+                {reaction.pb_reaction_id}
               </Title>
-            )}
-            <Title order={2}>{reaction.pb_reaction_id}</Title>
-            <CopyButton options={copyOptions} />
-            <ActionIcon variant="transparent">
-              <EditIcon onClick={open} />
-            </ActionIcon>
-          </Flex>
-          <Flex
-            align="center"
-            gap="sm"
-          >
+              <CopyButton options={copyOptions} />
+              <ActionIcon variant="transparent">
+                <EditIcon onClick={open} />
+              </ActionIcon>
+            </Flex>
             <Button
+              onClick={onPreviewSave}
               variant="transparent"
-              color="red"
-              leftSection={<TrashIcon />}
+              leftSection={<CopyImageIcon className={classes.buttonIcon} />}
+              className={classes.copyButton}
             >
-              Remove
+              Copy reaction image
             </Button>
-            <Button
-              variant="transparent"
-              leftSection={<CheckListIcon />}
-            >
-              Save as Template
-            </Button>
-            <DownloadMenu
-              options={fileDownloadOptions}
-              url={`/datasets/${datasetId}/reactions/${reactionId}/download`}
-              target={
-                <Button
-                  leftSection={<DownloadIcon />}
-                  rightSection={<ChevronDownIcon />}
-                  variant="transparent"
-                >
-                  Download Reaction
-                </Button>
-              }
-            />
-            <Button>Save</Button>
           </Flex>
+          <ReactionPreview
+            reaction={reaction}
+            ref={previewRef}
+          />
         </Flex>
-        <ReactionPreview reaction={reaction} />
-      </Flex>
-      <InputModal
-        opened={opened}
-        onClose={close}
-        onSubmit={onReactionNameChange}
-        title="Change Reaction ID"
-        inputLabel="Reaction ID"
-        inputPlaceholder="Enter reaction ID"
-        initialValue={reaction.pb_reaction_id}
-      />
-    </Paper>
+      </Paper>
+      {opened && (
+        <InputModal
+          onClose={close}
+          onSubmit={onReactionNameChange}
+          title="Edit Reaction ID"
+          inputLabel="Reaction ID"
+          initialValue={reaction.data.reactionId ?? ''}
+        />
+      )}
+    </>
   );
 }

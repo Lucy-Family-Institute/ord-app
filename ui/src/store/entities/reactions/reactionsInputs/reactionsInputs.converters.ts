@@ -14,117 +14,122 @@
  * limitations under the License.
  */
 import type { ord } from 'ord-schema-protobufjs';
-import type { AppReactionInput, AppReactionCompound, AppReactionAmount } from './reactionInputs.types.ts';
-import { v4 as uuid } from 'uuid';
-import {
-  appAmountUnspecified,
-  massUnitByValue,
-  massUnitNames,
-  molesUnitByValue,
-  molesUnitNames,
-  unitValueByName,
-  volumeUnitByValue,
-  volumeUnitNames,
-} from 'store/entities/reactions/reactionsInputs/reactionsInputs.models.ts';
+import type { ReactionInput, ReactionCrudeComponent } from './reactionInputs.types.ts';
 import type { AppReaction } from 'store/entities/reactions/reactions.types.ts';
 import {
-  ordDataMapToReactionDataMap,
-  reactionDataMapToOrdDataMap,
-} from 'store/entities/reactions/reactionData/reactionData.converters.ts';
+  ordAdditionDeviceToReaction,
+  ordAdditionSpeedToReaction,
+  ordBooleanToReaction,
+  ordFlowRateToReaction,
+  ordTemperatureToReaction,
+  ordTextureToReaction,
+  ordTimeToReaction,
+  reactionAdditionDeviceToOrd,
+  reactionAdditionSpeedToOrd,
+  reactionBooleanToOrd,
+  reactionFlowRateToOrd,
+  reactionTemperatureToOrd,
+  reactionTextureToOrd,
+  reactionTimeToOrd,
+  withId,
+  withIdName,
+  withoutIdName,
+} from 'store/entities/reactions/reactionEntity/reactionEntity.converters.ts';
+import {
+  ordInputComponentToReaction,
+  reactionInputComponentToOrd,
+} from 'store/entities/reactions/reactionComponent/reactionComponent.converters.ts';
+import {
+  ordAmountToReaction,
+  reactionAmountToOrd,
+} from 'store/entities/reactions/reactionAmount/reactionAmount.converters.ts';
 
-// TODO rewrite this mess NORMALLY
-// eslint-disable-next-line complexity
-function ordAmountToReactionAmount(ordAmount?: ord.IAmount | null): AppReactionAmount {
-  const { moles, mass, volume } = ordAmount || {};
-  if (moles?.units && molesUnitByValue[moles.units]) {
-    return {
-      ...moles,
-      units: molesUnitByValue[moles.units],
-    };
-  }
-  if (mass?.units && massUnitByValue[mass.units]) {
-    return {
-      ...mass,
-      units: molesUnitByValue[mass.units],
-    };
-  }
-  if (volume?.units && volumeUnitByValue[volume.units || 0]) {
-    return {
-      ...volume,
-      units: molesUnitByValue[volume.units],
-    };
-  }
+export function ordCrudeComponentToReaction({
+  reactionId,
+  includesWorkup,
+  hasDerivedAmount,
+  texture,
+  amount,
+}: ord.ICrudeComponent): ReactionCrudeComponent {
+  return withId({
+    reactionId,
+    includesWorkup: ordBooleanToReaction(includesWorkup),
+    hasDerivedAmount: ordBooleanToReaction(hasDerivedAmount),
+    texture: ordTextureToReaction(texture),
+    amount: ordAmountToReaction(amount),
+  });
+}
 
+export function reactionCrudeComponentToOrd({
+  reactionId,
+  includesWorkup,
+  hasDerivedAmount,
+  amount,
+  texture,
+}: ReactionCrudeComponent): ord.ICrudeComponent {
   return {
-    value: null,
-    precision: null,
-    units: appAmountUnspecified,
+    reactionId,
+    includesWorkup: reactionBooleanToOrd(includesWorkup),
+    hasDerivedAmount: reactionBooleanToOrd(hasDerivedAmount),
+    amount: reactionAmountToOrd(amount),
+    texture: reactionTextureToOrd(texture),
   };
 }
 
-function reactionAmountToOrdAmount(amount: AppReactionAmount): ord.IAmount | null {
-  if (amount.units === appAmountUnspecified) {
-    return null;
-  }
-  const ordAmountValue = {
-    value: amount.value,
-    precision: amount.precision,
-    units: unitValueByName[amount.units],
-  };
-
-  if (molesUnitNames.includes(amount.units)) {
-    return {
-      moles: ordAmountValue,
-    };
-  }
-  if (massUnitNames.includes(amount.units)) {
-    return {
-      mass: ordAmountValue,
-    };
-  }
-  if (volumeUnitNames.includes(amount.units)) {
-    return {
-      volume: ordAmountValue,
-    };
-  }
-  // Unreachable but typescript cannot infer it
-  return null;
-}
-
-export function ordCompoundToReactionCompound(ordCompound: ord.ICompound): AppReactionCompound {
-  const { amount, ...rest } = ordCompound;
-
-  return {
-    ...rest,
-    features: ordDataMapToReactionDataMap(ordCompound.features || {}),
-    amount: ordAmountToReactionAmount(amount),
-  };
-}
-
-function reactionCompoundToOrdCompound(appCompound: AppReactionCompound): ord.ICompound {
-  const { amount, ...rest } = appCompound;
-  return {
-    ...rest,
-    features: reactionDataMapToOrdDataMap(appCompound.features),
-    amount: reactionAmountToOrdAmount(amount),
-  };
-}
-
-export function ordInputToReactionsInput(ordInput: ord.IReactionInput, name: string): AppReactionInput {
-  const { components, ...rest } = ordInput;
-  return {
-    id: uuid(),
+export function ordInputToReactionsInput(ordInput: ord.IReactionInput, name: string): ReactionInput {
+  const {
+    components,
+    additionDuration,
+    additionTime,
+    additionDevice,
+    additionSpeed,
+    flowRate,
+    texture,
+    additionTemperature,
+    additionOrder,
+    crudeComponents,
+  } = ordInput;
+  return withIdName(
+    {
+      components: (components || []).map(ordInputComponentToReaction),
+      crudeComponents: (crudeComponents || []).map(ordCrudeComponentToReaction),
+      additionOrder,
+      additionSpeed: ordAdditionSpeedToReaction(additionSpeed),
+      additionDuration: ordTimeToReaction(additionDuration),
+      flowRate: ordFlowRateToReaction(flowRate),
+      additionDevice: ordAdditionDeviceToReaction(additionDevice),
+      additionTime: ordTimeToReaction(additionTime),
+      additionTemperature: ordTemperatureToReaction(additionTemperature),
+      texture: ordTextureToReaction(texture),
+    },
     name,
-    ...rest,
-    components: (components || []).map(ordCompoundToReactionCompound),
-  };
+  );
 }
 
-export function reactionInputToOrdInput(appInput: AppReactionInput): ord.IReactionInput {
-  const { components, id: _i, name: _n, ...rest } = appInput;
+export function reactionInputToOrdInput(appInput: ReactionInput): ord.IReactionInput {
+  const {
+    components,
+    crudeComponents,
+    additionOrder,
+    additionSpeed,
+    additionDuration,
+    flowRate,
+    additionDevice,
+    additionTime,
+    additionTemperature,
+    texture,
+  } = withoutIdName(appInput);
   return {
-    ...rest,
-    components: components.length > 0 ? components.map(reactionCompoundToOrdCompound) : null,
+    components: components.map(reactionInputComponentToOrd),
+    crudeComponents: crudeComponents.map(reactionCrudeComponentToOrd),
+    additionOrder,
+    additionSpeed: reactionAdditionSpeedToOrd(additionSpeed),
+    additionDuration: reactionTimeToOrd(additionDuration),
+    flowRate: reactionFlowRateToOrd(flowRate),
+    additionDevice: reactionAdditionDeviceToOrd(additionDevice),
+    additionTime: reactionTimeToOrd(additionTime),
+    additionTemperature: reactionTemperatureToOrd(additionTemperature),
+    texture: reactionTextureToOrd(texture),
   };
 }
 

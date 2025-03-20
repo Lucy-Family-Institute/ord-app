@@ -14,11 +14,21 @@
  * limitations under the License.
  */
 import classes from './counter.module.scss';
+import { Badge } from '@mantine/core';
+import clsx from 'clsx';
 
 interface CounterProps {
-  amount: number;
+  amount: number | string;
+  color?: string;
 }
 
-export function Counter({ amount }: Readonly<CounterProps>) {
-  return <span className={classes.counter}>{amount}</span>;
+export function Counter({ amount, color = 'grey' }: Readonly<CounterProps>) {
+  return (
+    <Badge
+      className={clsx(classes.counter, { [classes.defaultColor]: color === 'grey' })}
+      color={color}
+    >
+      {amount}
+    </Badge>
+  );
 }

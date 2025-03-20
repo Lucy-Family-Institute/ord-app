@@ -16,4 +16,7 @@
 import { createContext } from 'react';
 import type { ReactionEntityContext } from './reactionEntities.types.ts';
 
-export const reactionEntityContext = createContext<ReactionEntityContext>({ reactionId: 0, pathComponents: [] });
+export const reactionEntityContext = createContext<ReactionEntityContext>({
+  reactionId: 0,
+  pathComponents: [],
+});

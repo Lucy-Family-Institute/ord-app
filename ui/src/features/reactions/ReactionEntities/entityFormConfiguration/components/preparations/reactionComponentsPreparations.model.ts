@@ -17,11 +17,8 @@ import {
   ReactionFormNodeType,
   type ReactionFormNode,
 } from 'features/reactions/ReactionEntities/reactionEntities.types.ts';
-import { ord } from 'ord-schema-protobufjs';
-import { ordMapToKeyValueObject } from 'common/utils/reactionForm/ordMapToKeyValueObject.ts';
 import { wrapInputsWithGrid } from 'common/utils/reactionForm/wrapInputsWithGrid.ts';
-
-const preparationTypeOptions = ordMapToKeyValueObject(ord.CompoundPreparation.CompoundPreparationType);
+import { preparationTypeOptions } from 'store/entities/reactions/reactionEntityTypes/reactionEntityTypes.models.ts';
 
 export const reactionComponentsPreparations: Array<ReactionFormNode> = [
   wrapInputsWithGrid(

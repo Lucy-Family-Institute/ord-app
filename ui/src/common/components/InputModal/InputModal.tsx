@@ -16,11 +16,11 @@
 import { Button, Flex, Modal, TextInput } from '@mantine/core';
 import { useForm, yupResolver } from '@mantine/form';
 import classes from './InputModal.module.scss';
+import { requiredTextField } from 'common/utils/requiredTextField.schema';
 import { useEffect } from 'react';
 import * as yup from 'yup';
 
 interface InputModalProps {
-  opened: boolean;
   onClose: () => void;
   onSubmit: (value: string) => Promise<void>;
   title: string;
@@ -34,7 +34,6 @@ interface InputModalForm {
 }
 
 export function InputModal({
-  opened,
   onClose,
   onSubmit,
   title,
@@ -53,9 +52,10 @@ export function InputModal({
     },
     validate: yupResolver(
       yup.object({
-        value: yup.string().required().label(inputLabel),
+        value: requiredTextField(inputLabel),
       }),
     ),
+    validateInputOnChange: true,
   });
 
   useEffect(() => {
@@ -75,8 +75,8 @@ export function InputModal({
 
   return (
     <Modal
+      opened
       classNames={{ content: classes.modal, header: classes.header, body: classes.body }}
-      opened={opened}
       onClose={handleClose}
       title={title}
       centered
@@ -85,7 +85,7 @@ export function InputModal({
         <TextInput
           className={classes.inputWrapper}
           label={inputLabel}
-          placeholder={inputPlaceholder || `Enter ${inputLabel?.toLowerCase()}`}
+          placeholder={inputPlaceholder || ''}
           {...getInputProps('value')}
         />
         <Flex
@@ -96,7 +96,7 @@ export function InputModal({
             variant="default"
             onClick={handleClose}
           >
-            Close
+            Cancel
           </Button>
           <Button type="submit">Save</Button>
         </Flex>

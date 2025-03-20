@@ -11,17 +11,23 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import asyncio
 import sys
+from contextlib import asynccontextmanager
 
 from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi_pagination import add_pagination
 from loguru import logger
+from rdkit import RDLogger
 
 from ord_app.service_api.constants import AppEnvs
-from ord_app.service_api.resources.v1 import auth, datasets, group, reactions, users, utilities
+from ord_app.service_api.domain.reactions import validate_dataset_reactions
+from ord_app.service_api.resources.v1 import auth, datasets, group, reactions, templates, users, utilities
+from ord_app.service_api.services.postgresql import db_session_maker
 from ord_app.service_api.settings import RuntimeSettings
 
+RDLogger.DisableLog('rdApp.*')
 logger.remove()
 match RuntimeSettings.app_env:
     case AppEnvs.production:
@@ -31,7 +37,18 @@ match RuntimeSettings.app_env:
     case _:
         logger.add(sys.stdout, level="INFO")
 
-app = FastAPI(root_path="/service_api", swagger_ui_parameters={"tryItOutEnabled": True})
+
+async def run_background_task():
+    async with db_session_maker() as db:
+        await validate_dataset_reactions(db)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    asyncio.create_task(run_background_task())
+    yield
+
+app = FastAPI(root_path="/service_api", swagger_ui_parameters={"tryItOutEnabled": True}, lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -44,7 +61,9 @@ app.add_middleware(
 
 editor = APIRouter(prefix="/api/v1")
 editor.include_router(auth.router)
+
 editor.include_router(users.router)
+editor.include_router(templates.router)
 editor.include_router(datasets.router)
 editor.include_router(reactions.router)
 editor.include_router(group.router)

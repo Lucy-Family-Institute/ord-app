@@ -19,10 +19,10 @@ import { ActionIcon, Button, Flex, Paper, Title } from '@mantine/core';
 import { CopyButton, type CopyButtonOptions } from 'common/components/interactions/CopyButton/CopyButton.tsx';
 import { formatDate } from 'common/utils';
 import { DownloadMenu } from 'common/components/DownloadMenu/DownloadMenu.tsx';
-import { ChevronDownIcon, EditIcon, TrashIcon } from 'common/icons';
+import { ChevronDownIcon, EditIcon, RemoveIcon } from 'common/icons';
 import type { Dataset } from 'store/entities/datasets/datasets.types.ts';
 import { useCallback, useMemo } from 'react';
-import { useLocation } from 'wouter';
+import { useLocation, useRouter } from 'wouter';
 import { EditDataset } from './EditDataset/EditDataset.tsx';
 import { useSelector } from 'react-redux';
 import { selectIsDatasetOpened } from 'store/entities/datasets/datasets.selectors.ts';
@@ -32,6 +32,7 @@ import { domain, fileDownloadOptions } from 'common/constants.ts';
 import { ConfirmPopover } from 'common/components/ConfirmPopover/ConfirmPopover.tsx';
 import { useDisclosure } from '@mantine/hooks';
 import { removeDataset } from 'store/entities/datasets/datasets.thunks.ts';
+import { GroupsListWithRoles } from 'common/components/GroupsListWithRoles/GroupsListWithRoles.tsx';
 import classes from './datasetHeader.module.scss';
 
 interface DatasetHeaderProps {
@@ -40,6 +41,7 @@ interface DatasetHeaderProps {
 
 export function DatasetHeader({ dataset }: Readonly<DatasetHeaderProps>) {
   const [location] = useLocation();
+  const { base } = useRouter();
   const dispatch = useAppDispatch();
   const isEditOpened = useSelector(selectIsDatasetOpened);
   const [removeConfirmOpened, { open: openRemoveConfirm, close: closeRemoveConfirm }] = useDisclosure(false);
@@ -54,10 +56,10 @@ export function DatasetHeader({ dataset }: Readonly<DatasetHeaderProps>) {
 
   const copyToClipboardOptions: Array<CopyButtonOptions> = useMemo(
     () => [
-      { label: 'Copy Dataset Link', value: `${domain}${location}` },
+      { label: 'Copy Dataset Link', value: `${domain}${base}${location}` },
       { label: 'Copy Dataset ID', value: dataset.id.toString() },
     ],
-    [dataset.id, location],
+    [base, dataset.id, location],
   );
 
   const handleDatasetRemove = useCallback(() => {
@@ -73,7 +75,9 @@ export function DatasetHeader({ dataset }: Readonly<DatasetHeaderProps>) {
     >
       <div>
         <div className={classes.datasetInfo}>
-          <DataField label="Group">{dataset.group}</DataField>
+          <DataField label="Group">
+            <GroupsListWithRoles data={dataset?.groups || []} />
+          </DataField>
           <DataField label="Dataset Owner">
             <UserField username={dataset?.owner.name} />
           </DataField>
@@ -127,7 +131,7 @@ export function DatasetHeader({ dataset }: Readonly<DatasetHeaderProps>) {
               classNames={{ section: classes.removeIcon }}
               variant="transparent"
               color="red"
-              leftSection={<TrashIcon />}
+              leftSection={<RemoveIcon />}
               onClick={openRemoveConfirm}
             >
               Remove

@@ -94,7 +94,6 @@ export const theme = createTheme({
         inputWrapperOrder: ['label', 'input', 'description', 'error'],
       },
       styles: {
-        root: {},
         label: {
           color: 'var(--color-text-secondary-2)',
           paddingBottom: '8px',
@@ -111,23 +110,22 @@ export const theme = createTheme({
         },
       },
     },
-    // Almost impossible to properly customize, need to rewrite from scratch
-    /*SegmentedControl: {
+    Accordion: {
       styles: {
-        root: {
-          backgroundColor: 'white',
-          border: '1px solid #D2D6DB',
-          borderRadius: 8,
-          padding: 0,
-        },
         control: {
-          padding: 0,
+          backgroundColor: '#F2F2F2',
         },
-        indicator: {
-          backgroundColor: '#F8F8F8',
-          height: 32,
+        content: {
+          padding: 'var(--mantine-spacing-xs) var(--mantine-spacing-md)',
         },
       },
-    },*/
+    },
+    Badge: {
+      styles: {
+        label: {
+          textTransform: 'none',
+        },
+      },
+    },
   },
 });

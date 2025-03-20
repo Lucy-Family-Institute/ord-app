@@ -11,11 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from typing import Optional
+
 from fastapi_pagination.ext.sqlalchemy import paginate
 from loguru import logger
-from sqlalchemy import and_, delete, exists, func, select, update
+from sqlalchemy import and_, delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import joinedload, with_loader_criteria
+from sqlalchemy.orm import contains_eager, joinedload, with_loader_criteria
 
 from ord_app.service_api.models import (
     DatasetGroupAssociationModel,
@@ -23,6 +25,17 @@ from ord_app.service_api.models import (
     GroupModel,
     ReactionModel,
     UserGroupsMembershipModel,
+    UserModel,
+)
+
+SELECT_STMT = (
+    DatasetModel,
+    func.count(ReactionModel.id).label("reaction_count"),
+    func.count().filter(ReactionModel.is_valid.is_(False)).label("invalid_reaction_count"),
+    func.count().filter(ReactionModel.is_valid.is_(True)).label("valid_reaction_count"),
+    func.count().filter(ReactionModel.id.isnot(None), ReactionModel.is_valid.is_(None)).label(
+        "none_reaction_count"
+    ),
 )
 
 
@@ -35,9 +48,11 @@ class DatasetsRepository:
             update(DatasetModel)
             .where(DatasetModel.id == dataset_id)
             .values(modified_at=func.now())
+            .returning(DatasetModel)
         )
-        await self.db.execute(stmt)
+        dataset = await self.db.scalar(stmt)
         await self.db.commit()
+        return dataset
 
     async def create(
         self,
@@ -66,40 +81,14 @@ class DatasetsRepository:
         )
         return await self.db.scalar(stmt)
 
-    async def get_with_sharable_info(self, dataset_id: int, user_id: int) -> DatasetModel:
-        # Subquery to check that a group has a membership record with the specified user_id.
-        user_group_exists = exists(
-            select(1)
-            .where(
-                and_(
-                    UserGroupsMembershipModel.group_id == GroupModel.id,
-                    UserGroupsMembershipModel.user_id == user_id
-                )
-            )
-            .correlate(GroupModel)  # Explicitly correlate with GroupModel for correct scoping
-        )
-
-        # Subquery to check that there is an association for the given dataset in the group
-        # where the 'is_primary' flag is True.
-        dataset_assoc_exists = exists(
-            select(1)
-            .where(
-                and_(
-                    DatasetGroupAssociationModel.group_id == GroupModel.id,
-                    DatasetGroupAssociationModel.dataset_id == dataset_id,
-                    DatasetGroupAssociationModel.is_primary.is_(True)
-                )
-            )
-            .correlate(GroupModel)  # Correlate with GroupModel to ensure proper linkage
-        )
-
+    async def get_with_sharable_info(self, dataset_id: int, user_id: int):
         stmt = (
-            select(DatasetModel)
+            select(*SELECT_STMT)
+            .outerjoin(DatasetModel.reactions)
             .where(DatasetModel.id == dataset_id)
             .options(
                 # Eager-load related owner, associations, and groups.
                 joinedload(DatasetModel.owner),
-                joinedload(DatasetModel.dataset_group_associations),
                 joinedload(DatasetModel.groups),
                 # Apply loader criteria to filter associations: only include those with is_primary True.
                 with_loader_criteria(
@@ -107,36 +96,53 @@ class DatasetsRepository:
                     DatasetGroupAssociationModel.is_primary.is_(True),
                     include_aliases=True
                 ),
-                # Apply loader criteria to filter groups:
-                # Only include groups where both conditions are met:
-                #   1. The group has a membership record with the specified user_id.
-                #   2. The group is associated with the dataset with is_primary True.
-                with_loader_criteria(
-                    GroupModel,
-                    and_(
-                        user_group_exists,
-                        dataset_assoc_exists
-                    ),
-                    include_aliases=True
+            )
+            .group_by(DatasetModel.id)
+        )
+        dataset, rct_total, rct_invalid, rct_valid, rct_none = (await self.db.execute(stmt)).first()
+        dataset.reactions_count = {
+            "total": rct_total,
+            "invalid": rct_invalid,
+            "valid": rct_valid,
+            "none": rct_none,
+        }
+
+        dataset_associations_stmt = (
+            select(DatasetGroupAssociationModel)
+            .where(
+                DatasetGroupAssociationModel.group_id.in_({group.id for group in dataset.groups}),
+                DatasetGroupAssociationModel.dataset_id == dataset.id,
+                DatasetGroupAssociationModel.is_primary.is_(True),
+                DatasetGroupAssociationModel.group.has(
+                    GroupModel.members.any(
+                        UserModel.id == user_id
+                    )
                 )
             )
-            .limit(1)
         )
-        return await self.db.scalar(stmt)
+
+        dataset.is_sharable = False
+        if (await self.db.execute(dataset_associations_stmt)).all():
+            dataset.is_sharable = True
+
+        return dataset
 
     async def get_with_reactions(self, dataset_id: int) -> DatasetModel:
         stmt = (
             select(DatasetModel)
             .where(DatasetModel.id == dataset_id)
-            .options(joinedload(DatasetModel.reactions))
-            .order_by(DatasetModel.modified_at.desc())
+            .outerjoin(DatasetModel.reactions)
+            .options(contains_eager(DatasetModel.reactions))
+            .order_by(
+                DatasetModel.modified_at.desc(),
+                ReactionModel.id.desc(),
+            )
         )
         return await self.db.scalar(stmt)
 
-    async def _modify_paginated_datasets(self, paginated_datasets, user_id):
-        # wip
+    async def enrich_datasets_with_user_roles(self, datasets, user_id):
         # Collect all group IDs from the paginated datasets
-        group_ids = {group.id for dataset in paginated_datasets.items for group in dataset.groups}
+        group_ids = {group.id for dataset in datasets for group in dataset.groups}
 
         # Query memberships for the specific user and the collected groups
         membership_stmt = (
@@ -150,49 +156,35 @@ class DatasetsRepository:
         membership_by_group = {membership.group_id: membership for membership in memberships.all()}
 
         # Annotate each group in the paginated datasets with the user role
-        for dataset in paginated_datasets.items:
+        for dataset in datasets:
             for group in dataset.groups:
                 membership = membership_by_group.get(group.id)
                 group.role = membership.role if membership else None
             # filter out groups that the user is not a member of
             dataset.groups = [group for group in dataset.groups if group.role is not None]
 
-        return paginated_datasets
-
-    async def group_dataset_stmt(self, group_id: int, user_id: int):
-        # Base query for datasets
-        stmt = (
-            select(DatasetModel)
-            .join(DatasetGroupAssociationModel, DatasetGroupAssociationModel.dataset_id == DatasetModel.id)
-            .where(DatasetGroupAssociationModel.group_id == group_id)
-            .options(
-                joinedload(DatasetModel.owner),
-                joinedload(DatasetModel.groups),
-                joinedload(DatasetModel.reactions).load_only(ReactionModel.id),
+    async def datasets_stmt(self, user_id: int, group_id: Optional[int] = None):
+        filters = [
+            DatasetModel.groups.any(
+                GroupModel.members.any(UserModel.id == user_id)
             )
+        ]
+
+        if group_id is not None:
+            filters.append(
+                DatasetModel.groups.any(GroupModel.id == group_id)
+            )
+
+        stmt = (
+            select(*SELECT_STMT)
+            .outerjoin(DatasetModel.reactions)
+            .where(and_(*filters))
+            .group_by(DatasetModel.id)
             .order_by(DatasetModel.modified_at.desc())
         )
-        paginated_datasets = await paginate(self.db, stmt)
-        paginated_datasets = await self._modify_paginated_datasets(paginated_datasets, user_id)
 
-        return paginated_datasets
-
-    async def user_datasets_stmt(self, user_id):
-        stmt = (
-            select(DatasetModel)
-            .distinct()
-            .join(DatasetModel.groups)
-            .join(GroupModel.members)
-            .join(UserGroupsMembershipModel, UserGroupsMembershipModel.group_id == GroupModel.id)
-            .where(UserGroupsMembershipModel.user_id == user_id)
-            .options(
-                joinedload(DatasetModel.owner),
-                joinedload(DatasetModel.reactions).load_only(ReactionModel.id),
-            )
-            .order_by(DatasetModel.modified_at.desc())
-        )
         paginated_datasets = await paginate(self.db, stmt)
-        paginated_datasets = await self._modify_paginated_datasets(paginated_datasets, user_id)
+        await self.enrich_datasets_with_user_roles(paginated_datasets.items, user_id)
 
         return paginated_datasets
 

@@ -14,28 +14,37 @@
  * limitations under the License.
  */
 import type { ord } from 'ord-schema-protobufjs';
-import type { UniqueEntity } from 'store/utils/UniqueEntity.ts';
-import type { AppData } from 'store/entities/reactions/reactionData/reactionData.types.ts';
+import type {
+  ReactionAdditionDevice,
+  ReactionBoolean,
+  ReactionFlowRate,
+  ReactionSpeed,
+  ReactionTemperature,
+  ReactionTexture,
+  ReactionTime,
+  WithId,
+  WithIdName,
+} from 'store/entities/reactions/reactionEntity/reactionEntity.types.ts';
+import type { ReactionInputComponent } from 'store/entities/reactions/reactionComponent/reactionComponent.types.ts';
+import type { ReactionAmount } from 'store/entities/reactions/reactionAmount/reactionAmount.types.ts';
 
-export type AppAmountUnspecified = 'UNSPECIFIED';
-
-export type AppMolesUnit = Exclude<keyof typeof ord.Moles.MolesUnit, AppAmountUnspecified>;
-export type AppMassUnit = Exclude<keyof typeof ord.Mass.MassUnit, AppAmountUnspecified>;
-export type AppVolumeUnit = Exclude<keyof typeof ord.Volume.VolumeUnit, AppAmountUnspecified>;
-
-export type AppReactionAmountType = AppMolesUnit | AppMassUnit | AppVolumeUnit | AppAmountUnspecified;
-
-export interface AppReactionAmount extends Pick<NonNullable<Required<ord.IAmount>['mass']>, 'value' | 'precision'> {
-  units: AppReactionAmountType;
+export interface ReactionCrudeComponent extends WithId<Pick<ord.ICrudeComponent, 'reactionId'>> {
+  includesWorkup: ReactionBoolean;
+  hasDerivedAmount: ReactionBoolean;
+  amount: ReactionAmount;
+  texture: ReactionTexture;
 }
 
-export interface AppReactionCompound extends Omit<ord.ICompound, 'amount' | 'features'> {
-  features: Record<string, AppData>;
-  amount: AppReactionAmount;
-}
-
-export interface AppReactionInput extends Omit<ord.IReactionInput, 'components'>, UniqueEntity {
-  components: Array<AppReactionCompound>;
+export interface ReactionInput extends WithIdName<Pick<ord.IReactionInput, 'additionOrder'>> {
+  crudeComponents: Array<ReactionCrudeComponent>;
+  components: Array<ReactionInputComponent>;
+  additionDuration: ReactionTime;
+  additionTime: ReactionTime;
+  additionSpeed: ReactionSpeed;
+  flowRate: ReactionFlowRate;
+  additionDevice: ReactionAdditionDevice;
+  additionTemperature: ReactionTemperature;
+  texture: ReactionTexture;
 }
 
 export interface AppAmountUnitUnspecified {

@@ -20,9 +20,10 @@ import {
   ReactionEntityBlockTitle,
 } from 'features/reactions/ReactionEntities/reactionEntityNode/ReactionEntityBlock/ReactionEntityBlock.tsx';
 import { useReactionEntityLabel } from 'features/reactions/ReactionEntities/reactionEntityNode/useReactionEntityLabel.tsx';
-import { Button, Flex, Title } from '@mantine/core';
+import { Button, Flex } from '@mantine/core';
 import { AddCircleIcon } from 'common/icons';
 import { useCallback } from 'react';
+import { TitleDelimiterAmount } from 'common/components/display/TitleDelimiterAmount/TitleDelimiterAmount.tsx';
 
 interface ReactionEntityAddButtonProps extends Required<Pick<ReactionFormList, 'addItem'>> {
   items: Array<unknown>;
@@ -59,11 +60,10 @@ export function ReactionEntityList({ node }: Readonly<ReactionEntityNodeProps<Re
       renderedTitle={
         <ReactionEntityBlockTitle
           leftSection={
-            <>
-              <Title order={3}>{title}</Title>
-              <span>·</span>
-              {items.length}
-            </>
+            <TitleDelimiterAmount
+              title={title}
+              amount={items.length}
+            />
           }
           rightSection={
             node.addItem ? (
@@ -77,18 +77,22 @@ export function ReactionEntityList({ node }: Readonly<ReactionEntityNodeProps<Re
         />
       }
     >
-      <Flex
-        direction="column"
-        gap="sm"
-      >
-        {items.map((item, index) => (
-          // eslint-disable-next-line react/jsx-key
-          <ItemDisplay
-            entity={item}
-            entityKey={node.getKey(item, index)}
-          />
-        ))}
-      </Flex>
+      {!!node.emptyList && items.length === 0 ? (
+        node.emptyList
+      ) : (
+        <Flex
+          direction="column"
+          gap="sm"
+        >
+          {items.map((item, index) => (
+            // eslint-disable-next-line react/jsx-key
+            <ItemDisplay
+              entity={item}
+              entityKey={node.getKey(item, index)}
+            />
+          ))}
+        </Flex>
+      )}
     </ReactionEntityBlock>
   );
 }

@@ -23,9 +23,10 @@ import { useCallback, useRef } from 'react';
 import { useAppDispatch } from 'store/useAppDispatch.ts';
 import { popReactionPathComponents } from 'store/features/reactionForm/reactionForm.actions.ts';
 import { deleteReactionField } from 'store/entities/reactions/reactions.thunks.ts';
+import type { ReactionId } from 'store/entities/reactions/reactions.types.ts';
 
 interface ReactionEntityDeleteProps {
-  reactionId: number;
+  reactionId: ReactionId;
   entityName: string;
   pathComponents: ReactionPathComponents;
   shouldCloseSidebar?: true;
@@ -60,7 +61,7 @@ export function ReactionEntityDelete({
         <ActionIcon
           onClick={openConfirmation}
           className={classes.icon}
-          variant="white"
+          variant="transparent"
           color="red"
           ref={ref}
         >

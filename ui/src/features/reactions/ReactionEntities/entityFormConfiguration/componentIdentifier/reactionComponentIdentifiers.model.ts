@@ -17,17 +17,14 @@ import {
   ReactionFormNodeType,
   type ReactionFormNode,
 } from 'features/reactions/ReactionEntities/reactionEntities.types.ts';
-import { ord } from 'ord-schema-protobufjs';
-import { ordMapToKeyValueObject } from 'common/utils/reactionForm/ordMapToKeyValueObject.ts';
+import { compoundIdentifierTypeOptions } from 'store/entities/reactions/reactionEntityTypes/reactionEntityTypes.models.ts';
 
-const identifierTypeOptions = ordMapToKeyValueObject(ord.CompoundIdentifier.CompoundIdentifierType).filter(
-  item => item.label !== 'MOLBLOCK',
-);
+const typeOptionsWithoutMolBlock = compoundIdentifierTypeOptions.filter(item => item !== 'MOLBLOCK');
 
 export const reactionComponentIdentifiers: Array<ReactionFormNode> = [
   {
     type: ReactionFormNodeType.select,
-    options: identifierTypeOptions,
+    options: typeOptionsWithoutMolBlock,
     name: 'type',
     selectType: 'dropdown',
     wrapperConfig: {

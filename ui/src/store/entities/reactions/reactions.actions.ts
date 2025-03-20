@@ -17,30 +17,40 @@ import { createActionFactory } from 'store/utils';
 import type {
   AddEditReactionFieldPayload,
   ImportReactionFromFilePayload,
-  ReactionWrapper,
+  DatasetReaction,
   UpdateReactionPayload,
+  UpdateReactionSuccessPayload,
 } from './reactions.types.ts';
 import type { CurrentPage, Pages } from 'common/types';
+import type { RejectValue } from 'store/utils/handleApiError.ts';
 
 const { createAsyncAction } = createActionFactory('reactions');
 
-export const getReactionsListActions = createAsyncAction<number, Pages<ReactionWrapper>>('get_list');
+export const getReactionsListActions = createAsyncAction<number, Pages<DatasetReaction>, RejectValue>('get_list');
 
-export const getReactionPageActions = createAsyncAction<Partial<CurrentPage>, Pages<ReactionWrapper>>('get_page');
+export const getReactionPageActions = createAsyncAction<Partial<CurrentPage>, Pages<DatasetReaction>>('get_page');
 
-export const getReactionActions = createAsyncAction<{ datasetId: number; reactionId: number }, ReactionWrapper>('get');
+export const getReactionActions = createAsyncAction<
+  { datasetId: number; reactionId: number },
+  DatasetReaction,
+  RejectValue
+>('get');
 
-export const renameReactionActions = createAsyncAction<{ reactionId: number; name: string }, ReactionWrapper>('rename');
+export const createEmptyReactionActions = createAsyncAction<void, DatasetReaction>('create_empty');
 
-export const createEmptyReactionActions = createAsyncAction<void, ReactionWrapper>('create_empty');
-
-export const importReactionFromFileActions = createAsyncAction<ImportReactionFromFilePayload, ReactionWrapper>(
+export const importReactionFromFileActions = createAsyncAction<ImportReactionFromFilePayload, DatasetReaction>(
   'import_from_file',
 );
 
 export const addUpdateReactionFieldActions = createAsyncAction<
   AddEditReactionFieldPayload,
-  Omit<ReactionWrapper, 'data'>
+  UpdateReactionSuccessPayload
 >('addUpdateField');
 
-export const deleteReactionFieldActions = createAsyncAction<UpdateReactionPayload, void>('deleteField');
+export const searchReactionActions = createAsyncAction<string, DatasetReaction>('search');
+
+export const deleteReactionFieldActions = createAsyncAction<UpdateReactionPayload, UpdateReactionSuccessPayload>(
+  'deleteField',
+);
+
+export const removeReactionActions = createAsyncAction<number, number>('remove_dataset');

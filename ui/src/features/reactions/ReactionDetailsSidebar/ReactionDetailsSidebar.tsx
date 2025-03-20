@@ -25,15 +25,16 @@ import {
   popReactionPathComponents,
   sliceReactionPathComponentsList,
 } from 'store/features/reactionForm/reactionForm.actions.ts';
-import { getSidebarInfo } from 'features/reactions/ReactionEntities/getSidebarInfo.tsx';
+import { getSidebarInfo } from 'features/reactions/ReactionEntities/sidebarInfo/getSidebarInfo.tsx';
 import { nodeToComponentContext } from 'features/reactions/ReactionEntities/reactionEntityNode/reactionEntityNode.context.ts';
 import { reactionNodeToComponent } from 'features/reactions/ReactionEntities';
 import { useDisclosure } from '@mantine/hooks';
 import { ConfirmationModal } from 'common/components/ConfirmationModal/ConfirmationModal.tsx';
 import type { ReactionPathComponents } from 'common/types/reaction/reactionPathComponents.ts';
+import type { ReactionId } from 'store/entities/reactions/reactions.types.ts';
 
 interface EditSidebarProps {
-  reactionId: number;
+  reactionId: ReactionId;
 }
 
 function ReactionDetailsSidebarComponent({ reactionId }: Readonly<EditSidebarProps>) {

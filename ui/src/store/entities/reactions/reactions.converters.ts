@@ -14,16 +14,32 @@
  * limitations under the License.
  */
 import type { ord } from 'ord-schema-protobufjs';
-import type { AppReaction } from 'store/entities/reactions/reactions.types.ts';
 import {
   ordInputsToReactionInputs,
   reactionInputsToOrdInputs,
 } from 'store/entities/reactions/reactionsInputs/reactionsInputs.converters.ts';
+import {
+  linkReactionOutcome,
+  ordOutcomesListToReactionOutcomesList,
+  reactionOutcomesListToOrdOutcomesList,
+} from 'store/entities/reactions/reactionsOutcomes/reactionOutcomes.converters.ts';
+import {
+  ordReactionIdentifierToReaction,
+  reactionIdentifierToOrd,
+} from 'store/entities/reactions/reactionEntity/reactionEntity.converters.ts';
+import {
+  ordNotesToReaction,
+  reactionNotesToOrd,
+} from 'store/entities/reactions/reactionNotes/reactionNotes.converters.ts';
+import type { AppReaction } from 'store/entities/reactions/reactions.types.ts';
 
 export function ordReactionToReaction(reaction: ord.IReaction): AppReaction {
   return {
     ...reaction,
     inputs: ordInputsToReactionInputs(reaction.inputs),
+    outcomes: ordOutcomesListToReactionOutcomesList(reaction.outcomes || []),
+    identifiers: (reaction.identifiers || []).map(ordReactionIdentifierToReaction),
+    notes: ordNotesToReaction(reaction.notes),
   };
 }
 
@@ -31,5 +47,45 @@ export function reactionToOrdReaction(reaction: AppReaction): ord.IReaction {
   return {
     ...reaction,
     inputs: reactionInputsToOrdInputs(reaction.inputs),
+    outcomes: reactionOutcomesListToOrdOutcomesList(reaction.outcomes),
+    identifiers: reaction.identifiers.map(reactionIdentifierToOrd),
+    notes: reactionNotesToOrd(reaction.notes),
   };
+}
+
+export function linkReactionEntities(reaction: AppReaction): AppReaction {
+  return {
+    ...reaction,
+    outcomes: reaction.outcomes.map(linkReactionOutcome),
+  };
+}
+
+const PRECISION = 7;
+
+// Since ord-schema uses floats instead of doubles for all numbers we have to patch all the numbers to try to restore user's input
+// Accuracy is not guaranteed
+// Original issue
+// https://github.com/open-reaction-database/ord-interface/blob/main/ord_interface/editor/js/utils.js#L397
+export function convertReactionFloatsToDoubles(reactionPart: unknown): void {
+  if (typeof reactionPart !== 'object' || reactionPart === null) {
+    return;
+  }
+
+  if (Array.isArray(reactionPart)) {
+    reactionPart.forEach(item => convertReactionFloatsToDoubles(item));
+  } else {
+    Object.keys(reactionPart).forEach(key => {
+      const dynamicReactionPart = reactionPart as Record<string, unknown>;
+      const value = dynamicReactionPart[key];
+      if (typeof value === 'object') {
+        convertReactionFloatsToDoubles(value);
+      } else if (typeof value === 'number') {
+        if (Number.isInteger(value)) {
+          dynamicReactionPart[key] = parseInt(value.toString(), 10);
+        } else {
+          dynamicReactionPart[key] = parseFloat(value.toPrecision(PRECISION));
+        }
+      }
+    });
+  }
 }

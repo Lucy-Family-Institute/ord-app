@@ -16,13 +16,22 @@ from alembic import command
 from alembic.config import Config
 from faker import Faker
 from fastapi.testclient import TestClient
+from ord_schema.proto.reaction_pb2 import Reaction
 from sqlalchemy import create_engine, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy_utils import create_database, database_exists, drop_database
 
 from ord_app.service_api.main import app
-from ord_app.service_api.models import BaseModel, DatasetModel, GroupModel, UserGroupsMembershipModel, UserModel
+from ord_app.service_api.models import (
+    BaseModel,
+    DatasetModel,
+    GroupModel,
+    ReactionModel,
+    TemplateModel,
+    UserGroupsMembershipModel,
+    UserModel,
+)
 from ord_app.service_api.services.auth0 import verify_access_token
 from ord_app.service_api.services.postgresql import get_db_session
 from ord_app.service_api.settings import RuntimeSettings
@@ -43,6 +52,17 @@ async def test_db_session():
     async with db_session_maker() as session:
         yield session
 
+
+async def mock_validate_reactions_task(*args, **kwargs):
+    pass
+
+
+@pytest.fixture(autouse=True)
+def override_validate_reactions_task(monkeypatch):
+    monkeypatch.setattr(
+        "ord_app.service_api.resources.v1.datasets.validate_dataset_reactions",
+        mock_validate_reactions_task
+    )
 
 @pytest.fixture(autouse=True)
 async def override_engine(monkeypatch):
@@ -128,12 +148,26 @@ async def mock_authenticated_user(test_db_session):
     app.dependency_overrides.pop(verify_access_token, None)
 
 
-async def create_test_dataset(db_session, mock_authenticated_user):
+async def create_test_dataset(db_session, mock_authenticated_user) -> DatasetModel:
     user, _, group = mock_authenticated_user
-    dataset = DatasetModel(owner=user, groups=[group])
+    dataset = DatasetModel(owner=user, groups=[group], name=fake.uuid4())
     db_session.add(dataset)
     await db_session.commit()
     return dataset
+
+
+async def create_test_reaction(db_session, mock_authenticated_user, dataset, pb_reaction=None) -> ReactionModel:
+    pb_reaction = pb_reaction or Reaction(reaction_id=fake.uuid4())
+    user, _, group = mock_authenticated_user
+    reaction = ReactionModel(
+        pb_reaction_id=pb_reaction.reaction_id,
+        dataset=dataset,
+        owner=user,
+        binpb=pb_reaction.SerializeToString()
+    )
+    db_session.add(reaction)
+    await db_session.commit()
+    return reaction
 
 
 async def create_test_user_with_group(test_db_session, role="admin"):
@@ -153,3 +187,17 @@ async def create_test_user_with_group(test_db_session, role="admin"):
     await test_db_session.commit()
     await test_db_session.refresh(user)
     return user, group
+
+
+async def create_template(test_db_session, user_id):
+    payload = {
+        "binpb": Reaction(reaction_id=fake.name()).SerializeToString(),
+        "name": fake.name(),
+        "variables": fake.json(),
+        "owner_id": user_id,
+    }
+    template = TemplateModel(**payload)
+    test_db_session.add(template)
+    await test_db_session.commit()
+    await test_db_session.refresh(template)
+    return template

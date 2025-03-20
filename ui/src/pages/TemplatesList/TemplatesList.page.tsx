@@ -13,6 +13,90 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+import { useMemo } from 'react';
+import { Link } from 'wouter';
+import { Flex, Paper, Title } from '@mantine/core';
+import { PageContainer } from 'common/components/PageContainer/PageContainer.tsx';
+import type { Breadcrumbs } from 'common/types/breadcrumbs.ts';
+import { useSelector } from 'react-redux';
+import classes from './templatesList.page.module.scss';
+import { selectTemplatesOrder } from 'store/entities/templates/templates.selectors.ts';
+import { Counter } from 'common/components/display/Counter/Counter.tsx';
+import { EntitiesMenu } from 'features/templates/EntitiesMenu/EntitiesMenu';
+import { ReactionCard } from 'features/reactions/ReactionList/ReactionCard/ReactionCard.tsx';
+import { TemplateHeaderActions } from 'features/templates/TemplateHeaderActions/TemplateHeaderActions.tsx';
+import { selectReactionById } from 'store/entities/reactions/reactions.selectors.ts';
+
+interface TemplateTitleProps {
+  index: number;
+  templateId: string;
+}
+
+function TemplateTitle({ index, templateId }: Readonly<TemplateTitleProps>) {
+  const id = templateId.split('_')[1];
+  const linkToPage = `~/templates/${id}`;
+  const template = useSelector(selectReactionById(templateId));
+
+  return (
+    <>
+      <span className={classes.index}>{index}.</span>
+      <Link
+        className={classes.link}
+        to={linkToPage}
+      >
+        {template.name}
+      </Link>
+    </>
+  );
+}
+
 export function TemplatesListPage() {
-  return null;
+  const templatesOrder = useSelector(selectTemplatesOrder);
+
+  const breadcrumbs = useMemo((): Breadcrumbs => {
+    return [{ title: 'Templates', path: '~/' }];
+  }, []);
+
+  return (
+    <PageContainer breadcrumbs={breadcrumbs}>
+      <div className={classes.container}>
+        <EntitiesMenu />
+        <Flex
+          direction="column"
+          gap="sm"
+          className={classes.templates}
+        >
+          <Paper
+            radius="sm"
+            p="lg"
+          >
+            <Flex justify="space-between">
+              <Flex
+                align="center"
+                gap="sm"
+              >
+                <Title order={2}>Templates</Title>
+                <Counter amount={templatesOrder.length} />
+              </Flex>
+            </Flex>
+          </Paper>
+          <>
+            {templatesOrder.map((templateId, index) => (
+              <ReactionCard
+                key={templateId}
+                id={templateId}
+                actions={<TemplateHeaderActions templateId={templateId} />}
+                title={
+                  <TemplateTitle
+                    index={index + 1}
+                    templateId={templateId}
+                  />
+                }
+              />
+            ))}
+          </>
+        </Flex>
+      </div>
+    </PageContainer>
+  );
 }

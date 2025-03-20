@@ -26,6 +26,7 @@ from loguru import logger
 from ord_schema.proto.dataset_pb2 import Dataset
 from ord_schema.proto.reaction_pb2 import Reaction
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.concurrency import run_in_threadpool
 
 from ord_app.service_api.domain.auth import authenticate
 from ord_app.service_api.domain.exceptions import EntityDoesNotExist
@@ -37,7 +38,7 @@ from ord_app.service_api.schemas.datasets import (
     DatasetShareCreateSchema,
     DownloadFileFormats,
 )
-from ord_app.service_api.services.exceptions import ForbiddenError, ProtobufDecodeError
+from ord_app.service_api.services.exceptions import ForbiddenError, ProtobufDecodeError, UnprocessableEntityError
 from ord_app.service_api.services.postgresql import get_db_session
 
 
@@ -56,19 +57,28 @@ class DatasetUseCases:
 
     async def get(self, dataset_id: int) -> DatasetModel:
         dataset = await self.dataset_repository.get_with_sharable_info(dataset_id, self.current_user.id)
-
-        dataset.is_sharable = False
-        if dataset.groups and dataset.dataset_group_associations:
-            dataset.is_sharable = True
-
+        await self.dataset_repository.enrich_datasets_with_user_roles([dataset], self.current_user.id)
         return dataset
 
     async def paginate_group_datasets(self, group_id: int) -> Page[DatasetModel]:
-        return await self.dataset_repository.group_dataset_stmt(group_id, self.current_user.id)
+        return await self.dataset_repository.datasets_stmt(self.current_user.id, group_id)
+
+    async def extend(self, dataset_id: int, file_data, kind):
+        try:
+            dataset_pb = await run_in_threadpool(load_message, file_data, Dataset, kind)
+        except (DecodeError, JsonParseError, TextParseError) as e:
+            logger.error(e)
+            raise ProtobufDecodeError("An error occurred while reading the file.") from e
+
+        dataset = await self.dataset_repository.get(dataset_id)
+        await self.add_reactions(dataset, dataset_pb.reactions)
+        dataset = await self.dataset_repository.update_modified_at(dataset_id)
+
+        return dataset
 
     async def upload(self, group_id: int, file_data, kind):
         try:
-            dataset_pb = load_message(file_data, Dataset, kind)
+            dataset_pb = await run_in_threadpool(load_message, file_data, Dataset, kind)
         except (DecodeError, JsonParseError, TextParseError) as e:
             logger.error(e)
             raise ProtobufDecodeError("An error occurred while reading the file.") from e
@@ -80,18 +90,33 @@ class DatasetUseCases:
             payload=dataset_payload.model_dump(),
             autocommit=False
         )
+        self.db.add(dataset)
+        await self.db.commit()
 
+        await self.add_reactions(dataset, dataset_pb.reactions)
+        return dataset
+
+    async def add_reactions(self, dataset, reactions):
         seen_ids = set()
         reactions_ids = []
-        for reaction in dataset_pb.reactions:
-            if reaction.reaction_id in seen_ids:
+
+        for reaction in reactions:
+            if not reaction.reaction_id:
+                reaction.reaction_id = uuid4().hex
+            elif reaction.reaction_id in seen_ids:
                 reaction.reaction_id = f"duplicate-{reaction.reaction_id}-{uuid4().hex}"
+            else:
+                reaction.reaction_id = (reaction.reaction_id or "").strip()
+                if not reaction.reaction_id:
+                    reaction.reaction_id = uuid4().hex
+
             seen_ids.add(reaction.reaction_id)
             reactions_ids.append(reaction.reaction_id)
 
-        for item in await self.reaction_repository.filter(pb_reaction_id=reactions_ids):
+        logger.debug(f"Start processing <Dataset(id={dataset.id})> Reactions. Count={len(reactions_ids)}")
+        async for item in self.reaction_repository.get_by_reaction_ids_gen(dataset.id, reactions_ids):
             pb_reaction_idx = reactions_ids.index(item.pb_reaction_id)
-            dataset_pb.reactions[pb_reaction_idx].reaction_id = f"duplicate-{item.pb_reaction_id}-{uuid4().hex}"
+            reactions[pb_reaction_idx].reaction_id = f"duplicate-{item.pb_reaction_id}-{uuid4().hex}"
 
         reactions_payload = [
             {
@@ -100,15 +125,15 @@ class DatasetUseCases:
                 "dataset": dataset,
                 "owner_id": self.current_user.id,
             }
-            for reaction in dataset_pb.reactions
+            for reaction in reactions
         ]
-        await self.reaction_repository.bulk_create(reactions_payload)
-        await self.db.refresh(dataset)
 
-        return await self.dataset_repository.get(dataset.id)
+        logger.debug(f"Reactions <Dataset(id={dataset.id})> are going to write to database")
+        await self.reaction_repository.bulk_create(reactions_payload)
+        logger.debug(f"Finished processing <Dataset(id={dataset.id})> Reactions.")
 
     async def paginate_user_datasets(self):
-        return await self.dataset_repository.user_datasets_stmt(self.current_user.id)
+        return await self.dataset_repository.datasets_stmt(self.current_user.id)
 
     async def update(self, dataset_id: int, payload: DatasetCreateSchema) -> DatasetModel:
         await self.dataset_repository.update(dataset_id, payload.model_dump(exclude_unset=True))
@@ -131,10 +156,13 @@ class DatasetUseCases:
 
         dataset_pb.reactions.extend([Reaction.FromString(reaction.binpb) for reaction in dataset.reactions])
 
-        data = write_message(dataset_pb, kind=file_format)
+        data = await run_in_threadpool(write_message, dataset_pb, kind=file_format)
         return dataset, data
 
     async def share(self, primary_group_id: int, primary_dataset_id: int, payload: DatasetShareCreateSchema):
+        if primary_group_id == payload.secondary_group_id:
+            raise UnprocessableEntityError("Cannot share datasets with the same secondary group")
+
         dataset_group_association = (
             await self.dataset_repository.get_dataset_group_association(primary_group_id, primary_dataset_id)
         )
@@ -144,6 +172,9 @@ class DatasetUseCases:
         raise ForbiddenError(f"Dataset {primary_dataset_id} not owned by {primary_group_id}")
 
     async def unshare(self, primary_group_id: int, primary_dataset_id: int, payload: DatasetShareCreateSchema):
+        if primary_group_id == payload.secondary_group_id:
+            raise UnprocessableEntityError("Cannot unshare datasets with the same secondary group")
+
         dataset_group_association = (
             await self.dataset_repository.get_dataset_group_association(primary_group_id, primary_dataset_id)
         )

@@ -38,6 +38,7 @@ export function EditDataset({ datasetId, onClose }: Readonly<EditDatasetProps>) 
       description: dataset.description || '',
     },
     validate: yupResolver(editDatasetSchema),
+    validateInputOnChange: true,
   });
 
   const onSubmit = useCallback(
@@ -59,7 +60,7 @@ export function EditDataset({ datasetId, onClose }: Readonly<EditDatasetProps>) 
           gap="md"
         >
           <TextInput
-            label="Name"
+            label="Dataset name"
             {...form.getInputProps('name')}
           />
           <Textarea

@@ -16,11 +16,13 @@
 @import '@mantine/core/styles.css';
 @import 'mantine-react-table/styles.css';
 @import '@mantine/notifications/styles.css';
+@import '@mantine/dates/styles.css';
 
 :root {
   --color-primary: #3c78d8;
   --color-background-main: #f8f8f8;
   --color-background-gray: #e8ebed;
+  --color-background-dark-gray: #2f2f2f;
   --color-background-white: #fff;
   --color-text-primary: #090a0b;
   --color-text-hover: #ff8d00;
@@ -30,14 +32,30 @@
   --color-border-1: #e8ebed;
   --color-border-2: #d2d6db;
   --color-icons-default: #637d92;
+  --color-shadow-1: #7c7c7c;
   --font-size-sm: 12px;
   --font-size-lg: 16px;
 }
 
-button {
-  &[data-variant='transparent'] {
-    --button-hover-color: var(--color-text-hover);
-    --ai-hover-color: var(--color-text-hover);
+button.mantine-Button-root:not([data-variant]) {
+  &:hover {
+    outline: var(--mantine-spacing-xs) solid
+      color-mix(in srgb, var(--color-bg, var(--mantine-primary-color-filled)) 20%, transparent);
+  }
+
+  &:active {
+    background-color: var(--color-primaryBackgroundActive);
+  }
+}
+
+button[data-variant='transparent'] {
+  --button-hover-color: var(--color-text-hover);
+  --ai-hover-color: var(--color-text-hover);
+
+  &,
+  &:hover {
+    outline: none;
+    background: none;
   }
 }
 

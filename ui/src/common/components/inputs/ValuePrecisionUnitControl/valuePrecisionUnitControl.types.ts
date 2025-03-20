@@ -13,8 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+import type { Optional } from 'store/entities/reactions/reactionEntity/reactionEntity.types.ts';
+
 export interface ValuePrecisionUnit {
-  value?: number;
-  precision?: number;
-  units?: number;
+  value?: Optional<number>;
+  precision?: Optional<number>;
+  units: string;
 }

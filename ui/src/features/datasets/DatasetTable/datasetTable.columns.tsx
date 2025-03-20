@@ -15,6 +15,7 @@
  */
 import type { MRT_ColumnDef } from 'mantine-react-table';
 import { UserField } from 'common/components/display/UserField/UserField.tsx';
+import { GroupsListWithRoles } from 'common/components/GroupsListWithRoles/GroupsListWithRoles.tsx';
 import { formatDate } from 'common/utils';
 import type { Dataset } from 'store/entities/datasets/datasets.types.ts';
 
@@ -30,7 +31,7 @@ export const columns: Array<MRT_ColumnDef<Dataset>> = [
   },
   {
     id: 'size',
-    accessorKey: 'reaction_count',
+    accessorFn: originalRow => originalRow.reactions_count.total,
     header: 'Size',
     size: 80,
   },
@@ -38,6 +39,9 @@ export const columns: Array<MRT_ColumnDef<Dataset>> = [
     id: 'group',
     accessorKey: 'group',
     header: 'Group',
+    Cell: ({ row }) => {
+      return <GroupsListWithRoles data={row.original.groups} />;
+    },
     size: 145,
   },
   {

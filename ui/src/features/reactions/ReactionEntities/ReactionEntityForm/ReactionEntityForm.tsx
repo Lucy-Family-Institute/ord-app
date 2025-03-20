@@ -14,21 +14,21 @@
  * limitations under the License.
  */
 import { Form, useForm } from '@mantine/form';
-import { useSelector } from 'react-redux';
-import { selectReactionById } from 'store/entities/reactions/reactions.selectors.ts';
 import { Button, Flex } from '@mantine/core';
 import classes from './reactionEntityForm.module.scss';
 import { addUpdateReactionField } from 'store/entities/reactions/reactions.thunks.ts';
 import { useAppDispatch } from 'store/useAppDispatch.ts';
-import type { ReactionSidebarInfo } from 'features/reactions/ReactionEntities/getSidebarInfo.tsx';
 import type { ReactionPathComponents } from 'common/types/reaction/reactionPathComponents.ts';
 import { ReactionEntityBaseNode, reactionEntityToForm } from 'features/reactions/ReactionEntities';
 import { reactionEntityContext } from 'features/reactions/ReactionEntities/reactionEntity.context.ts';
 import { useCallback, useEffect, useMemo } from 'react';
 import type { ReactionEntityContext } from 'features/reactions/ReactionEntities/reactionEntities.types.ts';
+import type { ReactionSidebarInfo } from 'features/reactions/ReactionEntities/sidebarInfo/sidebarInfo.types.ts';
+import { getReactionEntityTransform } from 'features/reactions/ReactionEntities/entityFormConfiguration/reactionEntityToTransform.ts';
+import type { ReactionId } from 'store/entities/reactions/reactions.types.ts';
 
 interface ReactionEntityFormProps {
-  reactionId: number;
+  reactionId: ReactionId;
   isHidden: boolean;
   reactionPathComponents: ReactionPathComponents;
   sidebarInfo: ReactionSidebarInfo;
@@ -55,20 +55,14 @@ export function ReactionEntityForm({
   );
 
   const formEntity = sidebarInfo.entityName;
+  const transform = getReactionEntityTransform(formEntity);
 
-  const reaction = useSelector(selectReactionById(reactionId));
-  const initialValues = useMemo(() => {
-    return structuredClone(
-      reactionPathComponents.reduce(
-        (acc: object, key) => (acc !== null ? Reflect.get(acc, key) || null : null),
-        reaction.data,
-      ),
-    );
-  }, [reaction.data, reactionPathComponents]);
+  const initialValues = sidebarInfo.useInitialValues(reactionId, reactionPathComponents);
 
   const form = useForm({
     mode: 'uncontrolled',
     initialValues: { ...initialValues },
+    transformValues: transform,
   });
   const { watch, getValues, getInputProps, setValues, resetDirty } = form;
   const formMethods = useMemo(

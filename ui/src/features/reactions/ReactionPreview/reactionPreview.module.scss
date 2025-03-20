@@ -21,20 +21,40 @@
   padding-bottom: var(--mantine-spacing-md);
 }
 
-.molecule {
-  display: flex;
-
-  &,
-  & > svg {
-    max-height: 120px;
-    min-height: 60px;
-  }
-}
-
 .inputCard {
   display: flex;
   flex-direction: column;
-  min-height: 120px;
+  height: 224px;
+  border: 1px solid #e7ebef;
+  border-radius: 10px;
+  padding: var(--mantine-spacing-sm);
+  gap: var(--mantine-spacing-sm);
+}
+
+.componentList {
+  flex-grow: 1;
+  min-width: 200px;
+}
+
+.component {
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-rows: 1fr auto;
+  height: 100%;
+  width: 100%;
+}
+
+.molecule {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  &,
+  & > img {
+    min-width: min-content;
+    max-height: 80px;
+    min-height: 60px;
+  }
 }
 
 .plus {
@@ -48,4 +68,25 @@
   font-size: 24px;
   line-height: 32px;
   color: #090a0b;
+}
+
+.noPreviewWrapper {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.noPreviewIcon {
+  width: 48px;
+  height: 48px;
+  color: rgb(6 15 44 / 10%);
+}
+
+.desiredProductBadge {
+  min-width: max-content;
+  background-color: var(--color-purple);
+
+  .badgeLabel {
+    font-weight: 400;
+  }
 }

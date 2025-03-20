@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from base64 import b64decode, b64encode
-from collections import defaultdict
-from itertools import chain
 from typing import Any
 
 from ord_schema.message_helpers import molblock_from_compound
@@ -29,13 +27,53 @@ class _ReactionValidation(BaseSchema):
     warnings: list[str] = Field(default_factory=list)
 
 
-class ReactionSchema(BaseSchema):
+def safe_molblock(product):
+    try:
+        return molblock_from_compound(product)
+    except ValueError:
+        return None
+
+
+def get_molblocks(pb):
+    outcomes = []
+
+    for outcome in pb.outcomes:
+        outcome_item = []
+        for product in outcome.products:
+            product_item = {
+                "molblock": safe_molblock(product),
+                "measurements": []
+            }
+            for measurement in product.measurements:
+                product_item["measurements"].append({
+                    "authentic_standard": {
+                        "molblock": safe_molblock(measurement.authentic_standard)
+                    },
+                })
+
+            outcome_item.append(product_item)
+        outcomes.append({"products": outcome_item})
+
+    inputs = {
+        key: [safe_molblock(component) for component in value.components]
+        for key, value in pb.inputs.items()
+    }
+    return {"outcomes": outcomes, "inputs": inputs}
+
+
+class ReactionResponseSchema(BaseSchema):
     id: int
     pb_reaction_id: str
     binpb: str
     is_valid: bool | None
     validation: _ReactionValidation | None = None
-    summary: dict = Field(default_factory=lambda: {"provenance": {"doi": "foo"}, "summary": {"yield": 25.5}})
+    summary: dict = Field(
+        default_factory=lambda: {
+            "provenance": {"doi": "foo"},
+            "summary": {"yield": 25.5},
+            "conditions": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Aenean mattis."
+        }
+    )
     molblocks: dict
 
     @field_validator("binpb", mode="before")
@@ -46,24 +84,7 @@ class ReactionSchema(BaseSchema):
     @model_validator(mode="before")
     @classmethod
     def _fill_molblocks(cls, data: Any):
-        pb = load_message(data.binpb, Reaction, "binpb")
-
-        products = []
-        for product in chain.from_iterable(outcome.products for outcome in pb.outcomes):
-            try:
-                products.append(molblock_from_compound(product))
-            except ValueError:
-                products.append(None)
-
-        inputs = defaultdict(list)
-        for input_key, input_value in pb.inputs.items():
-            for component in input_value.components:
-                try:
-                    inputs[input_key].append(molblock_from_compound(component))
-                except ValueError:
-                    inputs[input_key].append(None)
-
-        data.molblocks = {"products": products, "inputs": inputs}
+        data.molblocks = get_molblocks(load_message(data.binpb, Reaction, "binpb"))
         return data
 
     @model_validator(mode="before")
@@ -75,25 +96,17 @@ class ReactionSchema(BaseSchema):
 
 
 class ReactionCreateSchema(BaseSchema):
-    binpb: bytes | None = None
+    binpb: bytes
 
-    @field_validator("binpb", mode="after")
-    @classmethod
-    def binpb_validation(cls, raw):
-        return None if raw is None else load_message(b64decode(raw), Reaction, "binpb").SerializeToString()
+    @field_validator("binpb", mode="before")
+    def load_binpb(cls, raw):
+        return b64decode(raw)
 
 
 class ReactionUpdateSchema(BaseSchema):
     model_config = ConfigDict(arbitrary_types_allowed=True)
+    binpb: bytes
 
-    binpb: bytes | Any
-
-    @field_validator("binpb", mode="after")
-    @classmethod
+    @field_validator("binpb", mode="before")
     def load_binpb(cls, raw):
-        return load_message(b64decode(raw), Reaction, "binpb")
-
-    def model_dump(self, *args, **kwargs)  -> dict[str, Any]:
-        data = super().model_dump(*args, **kwargs)
-        data["binpb"] = data["binpb"].SerializeToString()
-        return data
+        return b64decode(raw)

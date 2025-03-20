@@ -13,50 +13,31 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { useParams } from 'wouter';
 import { useAppDispatch } from 'store/useAppDispatch.ts';
-import { type FC, Fragment, useEffect, useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
+import type { Breadcrumbs } from 'common/types/breadcrumbs.ts';
 import { getReaction } from 'store/entities/reactions/reactions.thunks.ts';
 import { ReactionHeader } from 'features/reactions/ReactionHeader/ReactionHeader.tsx';
-import { Flex, Paper, Tabs, Tooltip } from '@mantine/core';
+import { Flex, Paper } from '@mantine/core';
 import { useSelector } from 'react-redux';
 import { selectReactionById } from 'store/entities/reactions/reactions.selectors.ts';
-import classes from './reactionPage.module.scss';
-import { RequiredAsterisk } from 'common/components/display/RequiredAsterisk/RequiredAsterisk.tsx';
-import { Inputs } from './Inputs/Inputs.tsx';
-import type { ReactionSectionProps } from './reactionPage.types.ts';
 import { ReactionDetailsSidebar } from 'features/reactions/ReactionDetailsSidebar/ReactionDetailsSidebar.tsx';
-import { Notes } from './Notes/Notes.tsx';
 import { PageContainer } from 'common/components/PageContainer/PageContainer.tsx';
-import type { Breadcrumbs } from 'common/types/breadcrumbs.ts';
 import { selectDatasetById } from 'store/entities/datasets/datasets.selectors.ts';
-import { Identifiers } from './Identifiers/Identifiers.tsx';
+import { reactionEntityContext } from 'features/reactions/ReactionEntities/reactionEntity.context.ts';
+import { ReactionTabs } from 'features/reactions/ReactionEntities/ReactionTabs/ReactionTabs.tsx';
+import { NotFoundPage } from 'pages/NotFound/NotFoundPage';
+import { selectErrorPage } from 'store/features/errorPage/errorPage.selectors.ts';
+import { resetErrorPageAction } from 'store/features/errorPage/errorPage.actions.ts';
 
-interface ReactionTab {
-  name: string;
-  required?: true;
-  Component: FC<ReactionSectionProps>;
+interface ReactionPageProps {
+  reactionId: number;
+  datasetId: number;
 }
 
-const createEmptyComponent = (name: string) => () => name;
-
-const tabs: Array<ReactionTab> = [
-  { name: 'inputs', required: true, Component: Inputs },
-  { name: 'outcomes', required: true, Component: createEmptyComponent('outcomes') },
-  { name: 'conditions', Component: createEmptyComponent('conditions') },
-  { name: 'identifiers', Component: Identifiers },
-  { name: 'setup', Component: createEmptyComponent('setup') },
-  { name: 'notes', Component: Notes },
-  { name: 'observations', Component: createEmptyComponent('observations') },
-  { name: 'workups', Component: createEmptyComponent('workups') },
-  { name: 'provenance', required: true, Component: createEmptyComponent('provenance') },
-];
-
-export function ReactionPage() {
+export function ReactionPage({ reactionId, datasetId }: Readonly<ReactionPageProps>) {
   const dispatch = useAppDispatch();
-  const { reactionId: rawReactionId, datasetId: rawDatasetId } = useParams<{ reactionId: string; datasetId: string }>();
-  const reactionId = parseInt(rawReactionId);
-  const datasetId = parseInt(rawDatasetId);
+  const error = useSelector(selectErrorPage);
   const reaction = useSelector(selectReactionById(reactionId));
   const dataset = useSelector(selectDatasetById(datasetId));
 
@@ -75,54 +56,47 @@ export function ReactionPage() {
     dispatch(getReaction({ datasetId, reactionId }));
   }, [dispatch, datasetId, reactionId]);
 
+  const contextValue = useMemo(
+    () => ({
+      reactionId,
+      pathComponents: [],
+    }),
+    [reactionId],
+  );
+
+  useEffect(
+    () => () => {
+      dispatch(resetErrorPageAction());
+    },
+    [dispatch],
+  );
+
+  if (error) {
+    return <NotFoundPage rejectValue={error} />;
+  }
+
   return (
     <PageContainer breadcrumbs={breadcrumbs}>
-      {reaction && (
-        <Flex
-          direction="column"
-          gap="sm"
-        >
-          <ReactionHeader
-            datasetId={datasetId}
-            reactionId={reactionId}
-          />
-          <Paper
-            radius="md"
-            p="lg"
+      <reactionEntityContext.Provider value={contextValue}>
+        {reaction && (
+          <Flex
+            direction="column"
+            gap="sm"
           >
-            <Tabs
-              defaultValue={tabs[0].name}
-              classNames={{ tab: classes.tabTitle, panel: classes.panel }}
+            <ReactionHeader
+              datasetId={datasetId}
+              reactionId={reactionId}
+            />
+            <Paper
+              radius="md"
+              p="lg"
             >
-              <Tabs.List>
-                {tabs.map(({ name, required }) => (
-                  <Fragment key={name}>
-                    {required ? (
-                      <Tooltip label="Mandatory section">
-                        <Tabs.Tab value={name}>
-                          {name}
-                          <RequiredAsterisk />
-                        </Tabs.Tab>
-                      </Tooltip>
-                    ) : (
-                      <Tabs.Tab value={name}>{name}</Tabs.Tab>
-                    )}
-                  </Fragment>
-                ))}
-              </Tabs.List>
-              {tabs.map(({ name, Component }) => (
-                <Tabs.Panel
-                  key={name}
-                  value={name}
-                >
-                  <Component reactionId={reactionId} />
-                </Tabs.Panel>
-              ))}
-            </Tabs>
-          </Paper>
-          <ReactionDetailsSidebar reactionId={reactionId} />
-        </Flex>
-      )}
+              <ReactionTabs reactionId={reactionId} />
+            </Paper>
+            <ReactionDetailsSidebar reactionId={reactionId} />
+          </Flex>
+        )}
+      </reactionEntityContext.Provider>
     </PageContainer>
   );
 }

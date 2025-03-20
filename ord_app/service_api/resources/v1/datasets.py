@@ -11,27 +11,23 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import os
-from io import BytesIO
 from typing import Annotated
 
 from fastapi import APIRouter, BackgroundTasks, Response, UploadFile, status
 from fastapi.params import Depends
 from fastapi_pagination import Page
-from ord_schema.templating import generate_dataset, read_spreadsheet
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ord_app.service_api.domain.auth import authenticate, dataset_authorization, group_authorization
+from ord_app.service_api.domain.auth import dataset_authorization, group_authorization
 from ord_app.service_api.domain.datasets import DatasetUseCases, get_dataset_use_case
-from ord_app.service_api.domain.reactions import validate_reactions_task
-from ord_app.service_api.models import DatasetModel, UserModel
+from ord_app.service_api.domain.reactions import validate_dataset_reactions
 from ord_app.service_api.schemas.datasets import (
     DatasetCreateSchema,
-    DatasetSchema,
-    DatasetSharableSchema,
+    DatasetResponseSchema,
+    DatasetSharableResponseSchema,
     DatasetShareCreateSchema,
     DatasetShareSchema,
-    DatasetWithReactionCountSchema,
+    DatasetWithReactionCountResponseSchema,
     DownloadFileFormats,
 )
 from ord_app.service_api.services.exceptions import EntityNotFoundError
@@ -45,7 +41,7 @@ router = APIRouter(tags=["datasets"])
 
 @router.post(
     "/groups/{group_id}/datasets",
-    response_model=DatasetSchema,
+    response_model=DatasetResponseSchema,
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(group_authorization(("admin", "editor")))],
 )
@@ -59,19 +55,20 @@ async def create_dataset(
 
 @router.get(
     "/groups/{group_id}/datasets",
-    response_model=Page[DatasetWithReactionCountSchema],
+    response_model=Page[DatasetWithReactionCountResponseSchema],
     dependencies=[Depends(group_authorization(("admin", "editor", "viewer")))],
 )
 async def get_group_datasets(
     group_id: int,
     use_case: Annotated[DatasetUseCases, Depends(get_dataset_use_case)],
 ):
-    return await use_case.paginate_group_datasets(group_id)
+    result = await use_case.paginate_group_datasets(group_id)
+    return result
 
 
 @router.post(
     "/groups/{group_id}/datasets/upload",
-    response_model=DatasetSchema,
+    response_model=DatasetResponseSchema,
     dependencies=[Depends(group_authorization(("admin", "editor")))],
 )
 async def upload_dataset(
@@ -82,12 +79,12 @@ async def upload_dataset(
     background_tasks: BackgroundTasks
 ):
     file_data, kind = await validate_uploaded_pb_file(file)
-    response = await use_case.upload(group_id, file_data, kind)
-    background_tasks.add_task(validate_reactions_task, db)
-    return response
+    dataset = await use_case.upload(group_id, file_data, kind)
+    background_tasks.add_task(validate_dataset_reactions, db, dataset.id)
+    return dataset
 
 
-@router.get("/datasets", response_model=Page[DatasetWithReactionCountSchema])
+@router.get("/datasets", response_model=Page[DatasetWithReactionCountResponseSchema])
 async def get_user_datasets(
     use_case: Annotated[DatasetUseCases, Depends(get_dataset_use_case)],
 ):
@@ -96,7 +93,7 @@ async def get_user_datasets(
 
 @router.patch(
     "/datasets/{dataset_id}",
-    response_model=DatasetSchema,
+    response_model=DatasetResponseSchema,
     dependencies=[Depends(dataset_authorization(("admin", "editor")))],
 )
 async def update_dataset(
@@ -119,7 +116,7 @@ async def delete_dataset(
 
 @router.get(
     "/datasets/{dataset_id}",
-    response_model=DatasetSharableSchema,
+    response_model=DatasetSharableResponseSchema,
     dependencies=[Depends(dataset_authorization(("admin", "editor", "viewer")))],
 )
 async def get_dataset(
@@ -151,33 +148,20 @@ async def download_dataset(
 
 
 @router.post(
-    "/datasets/enumerate_dataset/{user_id}",
-    dependencies=[Depends(group_authorization(("admin", "editor", "viewer")))],
+    "/datasets/{dataset_id}/extend",
+    dependencies=[Depends(dataset_authorization(("admin", "editor")))],
 )
-async def enumerate_dataset(
-    template: UploadFile,
-    spreadsheet: UploadFile,
-    user: UserModel = Depends(authenticate),
-    db_session: AsyncSession = Depends(get_db_session),
+async def extend_dataset(
+    dataset_id: int,
+    file: UploadFile,
+    use_case: Annotated[DatasetUseCases, Depends(get_dataset_use_case)],
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+    background_tasks: BackgroundTasks
 ):
-    """TODO: (It is unclear what this endpoint does) Creates a new dataset based on a template reaction and a spreadsheet."""
-    try:
-        basename, suffix = os.path.splitext(os.path.basename(spreadsheet.filename))
-        dataframe = read_spreadsheet(BytesIO(await spreadsheet.read()), suffix=suffix)
-        dataset = generate_dataset(
-            name=basename,
-            description="Enumerated by the ORD editor.",
-            template_string=(await template.read()).decode(),
-            df=dataframe,
-            validate=False,
-        )
-        # ds = DatasetModel(owner=user, group_id=group_id, name=dataset.name, binpb=dataset.SerializeToString())
-        ds = DatasetModel(owner=user, name=dataset.name)
-        db_session.add(ds)
-        await db_session.commit()
-        return basename
-    except Exception as error:  # pylint: disable=broad-except
-        return Response(str(error), status_code=400)
+    file_data, kind = await validate_uploaded_pb_file(file)
+    response = await use_case.extend(dataset_id, file_data, kind)
+    background_tasks.add_task(validate_dataset_reactions, db)
+    return response
 
 
 @router.post(

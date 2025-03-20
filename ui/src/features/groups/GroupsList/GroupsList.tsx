@@ -15,7 +15,7 @@
  */
 import { useEffect, useCallback, type ChangeEvent, type MouseEvent } from 'react';
 import { useSelector } from 'react-redux';
-import { ActionIcon, Button, Flex, Input, ScrollArea } from '@mantine/core';
+import { ActionIcon, Flex, Input, ScrollArea } from '@mantine/core';
 import {
   selectGroupSearch,
   selectHaveAnyGroups,
@@ -27,6 +27,7 @@ import { useAppDispatch } from 'store/useAppDispatch.ts';
 import { setActiveGroupIdAction, setEditingGroupIdAction } from 'store/features/groups/groups.actions.ts';
 import classes from './GroupsList.module.scss';
 import { selectActiveGroupId } from 'store/features/groups/groups.selectors.ts';
+import { SelectableButton } from 'common/components/SelectableButton/SelectableButton.tsx';
 
 const GROUP_BUTTON_HEIGHT = 36;
 
@@ -76,15 +77,18 @@ export function GroupsList() {
         placeholder="Search by group"
       />
       <Flex direction="column">
-        <Button
-          classNames={{ root: classes.groupButton, section: classes.buttonSection }}
-          variant="white"
-          leftSection={<GridViewIcon />}
+        <SelectableButton
+          isSelected={selectedGroupId === null}
           onClick={() => selectGroup(null)}
-          justify="flex-start"
         >
-          All Groups
-        </Button>
+          <Flex
+            align="center"
+            gap="xs"
+          >
+            <GridViewIcon />
+            All Groups
+          </Flex>
+        </SelectableButton>
 
         <ScrollArea
           h={scrollAreaHeight}
@@ -94,14 +98,9 @@ export function GroupsList() {
           type="auto"
         >
           {groups.map(group => (
-            <Button
-              classNames={{
-                root: classes.groupButton,
-                label: classes.buttonLabel,
-              }}
+            <SelectableButton
               key={group.id}
-              variant="white"
-              justify="flex-start"
+              isSelected={selectedGroupId === group.id}
               onClick={() => selectGroup(group.id)}
             >
               <div className={classes.buttonName}>
@@ -111,12 +110,12 @@ export function GroupsList() {
 
               <ActionIcon
                 onClick={e => openGroupInformation(e, group.id)}
-                variant="white"
+                variant="transparent"
                 title="Edit group"
               >
                 <SettingsIcon />
               </ActionIcon>
-            </Button>
+            </SelectableButton>
           ))}
         </ScrollArea>
       </Flex>

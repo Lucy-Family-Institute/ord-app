@@ -19,6 +19,7 @@ import type { FC, ReactNode } from 'react';
 import type { useForm } from '@mantine/form';
 import type { ReactionPathComponents } from 'common/types/reaction/reactionPathComponents.ts';
 import type { EntityListItemRuntimeProps } from 'features/reactions/ReactionEntities/entityFormConfiguration/EntityListItem/entityListItem.types.ts';
+import type { ReactionId } from 'store/entities/reactions/reactions.types.ts';
 
 export enum ReactionFormNodeType {
   group = 'group',
@@ -30,10 +31,19 @@ export enum ReactionFormNodeType {
   block = 'block',
   list = 'list',
   data = 'data',
+  date = 'date',
   custom = 'custom',
+  empty = 'empty',
 }
 
-export interface ReactionFormNodeBase {
+export interface ReactionFormConditionalRendering {
+  readonly condition?: {
+    name: string;
+    isHidden: (value: unknown) => boolean;
+  };
+}
+
+export interface ReactionFormNodeBase extends ReactionFormConditionalRendering {
   type: ReactionFormNodeType;
 }
 
@@ -56,13 +66,6 @@ export interface ReactionFormField {
   wrapperConfig?: ReactionFormStandaloneField;
 }
 
-export interface ReactionFormConditionalRendering {
-  readonly condition?: {
-    name: string;
-    isHidden: (value: unknown) => boolean;
-  };
-}
-
 export interface ReactionFormWrapper extends ReactionFormNodeBase, ReactionFormField {
   type: ReactionFormNodeType.wrapper;
   grid: number;
@@ -76,18 +79,23 @@ export interface ReactionFormValue extends ReactionFormField, ReactionFormNodeBa
   inputConfig?: Pick<InputProps, 'leftSection' | 'rightSection'> & { placeholder?: string };
 }
 
-export interface ReactionFormSelect extends ReactionFormField, ReactionFormNodeBase, ReactionFormConditionalRendering {
+export interface ReactionFormSelect extends ReactionFormField, ReactionFormNodeBase {
   type: ReactionFormNodeType.select;
   name: string;
-  options: SelectOptions<unknown>;
+  options: SelectOptions;
   selectType: 'segmented' | 'dropdown';
 }
 
-export interface ReactionFormValuePrecisionUnit extends ReactionFormField, ReactionFormNodeBase, ReactionFormNodeBase {
+export interface ReactionFormValuePrecisionUnit extends ReactionFormField, ReactionFormNodeBase {
   type: ReactionFormNodeType.vpu;
   name: string;
-  options: SelectOptions<number | string>;
+  options: SelectOptions;
   select?: 'native' | 'native-inline' | 'segmented';
+}
+
+export interface ReactionFormDate extends ReactionFormNodeBase, ReactionFormField {
+  type: ReactionFormNodeType.date;
+  name: string;
 }
 
 export interface ReactionFormObjectInitializer extends ReactionFormNodeBase {
@@ -117,6 +125,12 @@ export interface ReactionFormList<T = any> extends ReactionFormNodeBase {
   };
   useSelectItems: () => Array<T>;
   ItemDisplay: FC<EntityListItemRuntimeProps<T>>;
+  emptyList?: ReactNode;
+}
+
+export interface ReactionFormEmpty extends ReactionFormNodeBase {
+  type: ReactionFormNodeType.empty;
+  fields: Array<ReactionFormNode>;
 }
 
 export type ReactionFormMethods = Pick<
@@ -146,9 +160,26 @@ export type ReactionFormNode =
   | ReactionFormBlock
   | ReactionFormList
   | ReactionFormData
+  | ReactionFormDate
+  | ReactionFormEmpty
   | ReactionFormCustom;
 
 export interface ReactionEntityContext {
   pathComponents: ReactionPathComponents;
-  reactionId: number;
+  reactionId: ReactionId;
+}
+
+export enum ReactionEntity {
+  Inputs = 'inputs',
+  Notes = 'notes',
+  Identifiers = 'identifiers',
+  Components = 'components',
+  CrudeComponents = 'crudeComponents',
+  ComponentPreparations = 'preparations',
+  Data = 'data',
+  ComponentIdentifiers = 'component_identifiers',
+  Outcomes = 'outcomes',
+  Analyses = 'analyses',
+  Products = 'products',
+  Measurements = 'measurements',
 }
