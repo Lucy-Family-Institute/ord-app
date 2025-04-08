@@ -30,6 +30,12 @@ import { ReactionNodeEntity } from 'store/entities/reactions/reactions.types.ts'
 import type { ReactionProvenance } from 'store/entities/reactions/reactionProvenance/reactionProvenance.types.ts';
 import { createReactionEntityTitle } from '../ReactionEntityTitle/reactionEntityTitle.utils.tsx';
 import type { ReactionWorkup } from 'store/entities/reactions/reactionWorkups/reactionWorkups.types.ts';
+import type { ReactionConditions } from 'store/entities/reactions/reactionConditions/reactionConditions.types.ts';
+
+const withoutMeasurements = <T extends object>(object: T, name: keyof T): Omit<T, typeof name> => {
+  const { [name]: _, ...rest } = object;
+  return rest;
+};
 
 type SidebarInfoPathLess = Omit<ReactionSidebarInfo, 'pathComponents'>;
 
@@ -255,7 +261,44 @@ export const reactionSidebarInfo: Array<ReactionSidebarInfo> = [
       entityName: 'Conditions',
       hasDelete: true,
     }),
-    useInitialValues: buildUseInitialValues((value: ord.IReactionConditions) => value),
+    useInitialValues: buildUseInitialValues(
+      ({ temperature, electrochemistry, pressure, ...rest }: ReactionConditions) => ({
+        ...rest,
+        temperature: withoutMeasurements(temperature, 'temperatureMeasurements'),
+        electrochemistry: withoutMeasurements(electrochemistry, 'electrochemistryMeasurements'),
+        pressure: withoutMeasurements(pressure, 'pressureMeasurements'),
+      }),
+    ),
+  },
+  {
+    pathComponents: ['temperatureMeasurements'],
+    entityName: ReactionNodeEntity.TemperatureMeasurements,
+    label: 'Temperature Measurement',
+    sidebarTitle: createReactionEntityTitle({
+      entityName: 'Temperature Measurement',
+      hasDelete: true,
+    }),
+    useInitialValues: buildUseInitialValues(values => values),
+  },
+  {
+    pathComponents: ['electrochemistryMeasurements'],
+    entityName: ReactionNodeEntity.ElectrochemistryMeasurements,
+    label: 'Electrochemistry Measurement',
+    sidebarTitle: createReactionEntityTitle({
+      entityName: 'Electrochemistry Measurement',
+      hasDelete: true,
+    }),
+    useInitialValues: buildUseInitialValues(values => values),
+  },
+  {
+    pathComponents: ['pressureMeasurements'],
+    entityName: ReactionNodeEntity.PressureMeasurements,
+    label: 'Pressure Measurement',
+    sidebarTitle: createReactionEntityTitle({
+      entityName: 'Pressure Measurement',
+      hasDelete: true,
+    }),
+    useInitialValues: buildUseInitialValues(values => values),
   },
   {
     pathComponents: ['workups'],
@@ -267,7 +310,10 @@ export const reactionSidebarInfo: Array<ReactionSidebarInfo> = [
         'Workup steps refer to any additions, purifications, or other operations after the ‘reaction’ stage prior to analysis',
       hasDelete: true,
     }),
-    useInitialValues: buildUseInitialValues(({ input: _, ...rest }: ReactionWorkup) => rest),
+    useInitialValues: buildUseInitialValues(({ input: _, temperature, ...rest }: ReactionWorkup) => ({
+      ...rest,
+      temperature: withoutMeasurements(temperature, 'temperatureMeasurements'),
+    })),
   },
   ...componentsSidebars,
 ];
