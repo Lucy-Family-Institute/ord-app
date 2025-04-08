@@ -71,3 +71,5 @@ export type ReactionElectrochemistryCellType =
 export type ReactionFlowType = keyof typeof ord.FlowConditions.FlowType;
 
 export type ReactionTubingType = keyof typeof ord.FlowConditions.Tubing.TubingType;
+
+export type WorkupType = keyof typeof ord.ReactionWorkup.ReactionWorkupType;

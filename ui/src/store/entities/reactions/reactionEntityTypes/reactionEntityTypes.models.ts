@@ -122,3 +122,7 @@ export const { options: flowTypeOptions, byValue: flowTypeByValue } = generateOp
 export const { options: tubingTypeOptions, byValue: tubingTypeByValue } = generateOptionsAndByValue(
   ord.FlowConditions.Tubing.TubingType,
 );
+
+export const { options: workupTypeOptions, byValue: workupTypeByValue } = generateOptionsAndByValue(
+  ord.ReactionWorkup.ReactionWorkupType,
+);
