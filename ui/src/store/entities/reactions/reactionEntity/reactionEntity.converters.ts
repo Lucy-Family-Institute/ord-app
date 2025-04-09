@@ -137,7 +137,12 @@ const generateValuePrecisionUnitConverter = <T extends string>(
       units: typeFromOrd(units),
     };
   },
-  toOrd: ({ units, ...rest }: ReactionValuePrecisionUnit<T>): Optional<OrdValuePrecisionUnit> => {
+  toOrd: (vpu: Optional<ReactionValuePrecisionUnit<T>>): Optional<OrdValuePrecisionUnit> => {
+    if (!vpu) {
+      return null;
+    }
+    const { units, ...rest } = vpu;
+
     const unitsOrd = typeToOrd(units);
     const isDefault = unitsOrd === 0 && Object.values(rest).every(value => value === null);
     return isDefault ? null : { units: unitsOrd, ...rest };
@@ -155,7 +160,11 @@ const generateTypeDetailsConverter = <T extends string>(
       details: details ?? null,
     };
   },
-  toOrd: ({ type, details }: ReactionTypeDetails<T>): Optional<OrdTypeDetails> => {
+  toOrd: (typeDetails: Optional<ReactionTypeDetails<T>>): Optional<OrdTypeDetails> => {
+    if (!typeDetails) {
+      return null;
+    }
+    const { type, details } = typeDetails;
     const typeOrd = typeToOrd(type);
     const isDefault = typeOrd === 0 && (details === null || details === '');
     return isDefault ? null : { type: typeOrd, details: details };
@@ -294,7 +303,7 @@ export const reactionDateTimeToOrd = (dateTime: ReactionDateTime): Optional<ord.
   dateTime ? { value: dateTime } : null;
 
 export const ordTubingToReaction = (tubing: OrdOptional<ord.FlowConditions.ITubing>): Tubing => {
-  const { type, details, diameter } = tubing || {};
+  const { type, details, diameter } = tubing ?? {};
   return {
     type: ordTubingTypeToReaction(type),
     details,
@@ -318,7 +327,7 @@ export const reactionTubingToOrd = ({ type, details, diameter }: Tubing): Option
 export const ordStirringRateToReaction = (
   stirringRate: OrdOptional<ord.StirringConditions.IStirringRate>,
 ): StirringRate => {
-  const { type, details, rpm } = stirringRate || {};
+  const { type, details, rpm } = stirringRate ?? {};
   return {
     type: ordStirringRateTypeToReaction(type),
     details,
