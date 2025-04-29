@@ -70,3 +70,9 @@
     color: var(--mantine-color-red-light-color);
   }
 }
+
+.ownerName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
