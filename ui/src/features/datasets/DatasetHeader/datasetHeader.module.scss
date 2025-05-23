@@ -53,8 +53,7 @@
 }
 
 .buttonContainer {
-  display: flex;
-  justify-content: space-between;
+  flex-shrink: 0;
 
   button {
     border-radius: 8px;
